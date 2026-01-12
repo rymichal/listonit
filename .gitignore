@@ -1,0 +1,39 @@
+# Python / FastAPI Backend
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.python-version
+*.egg-info/
+dist/
+build/
+
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
