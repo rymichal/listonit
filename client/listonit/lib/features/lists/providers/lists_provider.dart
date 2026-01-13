@@ -139,6 +139,62 @@ class ListsNotifier extends StateNotifier<ListsState> {
     }
   }
 
+  Future<bool> updateList(
+    String listId, {
+    String? name,
+    String? color,
+    String? icon,
+  }) async {
+    final listIndex = state.lists.indexWhere((l) => l.id == listId);
+    if (listIndex == -1) {
+      state = state.copyWith(
+        error: 'List not found',
+      );
+      return false;
+    }
+
+    final oldList = state.lists[listIndex];
+
+    // Optimistic update
+    final updatedList = oldList.copyWith(
+      name: name ?? oldList.name,
+      color: color ?? oldList.color,
+      icon: icon ?? oldList.icon,
+      updatedAt: DateTime.now(),
+    );
+
+    final optimisticLists = state.lists.toList();
+    optimisticLists[listIndex] = updatedList;
+
+    state = state.copyWith(
+      lists: optimisticLists,
+      error: null,
+    );
+
+    try {
+      final updatedFromServer = await _repository.updateList(
+        listId,
+        name: name,
+        color: color,
+        icon: icon,
+      );
+
+      // Update with server response
+      state = state.copyWith(
+        lists: state.lists.map((l) => l.id == listId ? updatedFromServer : l).toList(),
+      );
+
+      return true;
+    } catch (e) {
+      // Rollback on error
+      state = state.copyWith(
+        lists: state.lists.map((l) => l.id == listId ? oldList : l).toList(),
+        error: e is ApiException ? e.message : 'Failed to update list',
+      );
+      return false;
+    }
+  }
+
   void clearError() {
     state = state.copyWith(error: null);
   }

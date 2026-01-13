@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/providers/auth_provider.dart';
 import '../providers/lists_provider.dart';
+import 'list_detail_screen.dart';
 import 'widgets/create_list_modal.dart';
 import 'widgets/list_tile.dart';
 
@@ -141,7 +142,11 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
             child: ShoppingListTile(
               list: list,
               onTap: () {
-                // TODO: Navigate to list detail screen
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ListDetailScreen(list: list),
+                  ),
+                );
               },
             ),
           );

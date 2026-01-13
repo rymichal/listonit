@@ -4,12 +4,15 @@
 Users mark items as purchased during shopping.
 
 ## Acceptance Criteria
-- [ ] Checkbox or swipe-right gesture to check
-- [ ] Checked items: strikethrough text, move to bottom
-- [ ] Uncheck: tap or swipe again
-- [ ] Record: checked_at timestamp, checked_by user
+- [x] Checkbox to check items (UI only - not persisted to backend)
+- [ ] Swipe-right gesture to check
+- [x] Checked items: strikethrough text, move to bottom (UI only)
+- [x] Uncheck: tap checkbox again (UI only)
+- [ ] Record: checked_at timestamp, checked_by user (requires backend)
 - [ ] Animation: satisfying check mark
 - [ ] Option: "Check off by swipe" toggle in settings
+- [ ] Backend API endpoint for check/uncheck
+- [ ] Check state persisted to database
 
 ## Technical Implementation
 

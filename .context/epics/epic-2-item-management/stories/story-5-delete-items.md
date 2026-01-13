@@ -4,11 +4,13 @@
 Users can remove items from lists.
 
 ## Acceptance Criteria
-- [ ] Swipe left to reveal delete button
+- [x] Swipe left to delete item (UI only - not persisted to backend)
 - [ ] Long-press to select, then bulk delete
 - [ ] Confirmation for bulk delete (>3 items)
 - [ ] Undo snackbar for 5 seconds
-- [ ] Deleted items removed from UI immediately
+- [x] Deleted items removed from UI immediately (UI only)
+- [ ] Backend API endpoint for deleting items
+- [ ] Deletion persisted to database
 
 ## Technical Implementation
 

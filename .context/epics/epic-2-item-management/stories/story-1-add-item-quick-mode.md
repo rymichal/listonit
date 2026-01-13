@@ -4,11 +4,13 @@
 Users can rapidly add items by typing names.
 
 ## Acceptance Criteria
-- [ ] Text input always visible at top/bottom of list
-- [ ] Pressing enter adds item immediately
-- [ ] Item appears with default quantity (1)
-- [ ] Input clears, ready for next item
+- [x] Text input always visible at top/bottom of list (UI only - not persisted to backend)
+- [x] Pressing enter adds item immediately (UI only - not persisted to backend)
+- [ ] Item appears with default quantity (1) - quantity not yet implemented
+- [x] Input clears, ready for next item
 - [ ] Support comma-separated batch add: "milk, eggs, bread"
+- [ ] Backend API endpoint for creating items
+- [ ] Items persisted to database
 
 ## Technical Implementation
 

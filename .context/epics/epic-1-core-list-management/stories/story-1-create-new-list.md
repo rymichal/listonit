@@ -4,13 +4,14 @@
 Users can create a new shopping list with a name, optional color, and icon.
 
 ## Acceptance Criteria
-- [ ] Tapping "+" opens create list modal
-- [ ] Name field is required (min 1, max 100 chars)
-- [ ] Color picker with 12 preset colors + custom hex
-- [ ] Icon picker with 20 common shopping icons
-- [ ] "Create" button disabled until name entered
-- [ ] New list appears immediately (optimistic UI)
-- [ ] Show error toast if sync fails, offer retry
+- [x] Tapping "+" opens create list modal
+- [x] Name field is required (min 1, max 100 chars)
+- [x] Color picker with 12 preset colors
+- [ ] Color picker with custom hex input
+- [x] Icon picker with 20 common shopping icons
+- [x] "Create" button disabled until name entered
+- [x] New list appears immediately (optimistic UI)
+- [x] Show error toast if sync fails, offer retry
 
 ## Technical Implementation
 
