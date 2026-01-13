@@ -19,6 +19,10 @@ class ListUpdate(BaseModel):
     is_archived: bool | None = None
 
 
+class ListDuplicate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+
+
 class ListResponse(ListBase):
     id: str
     owner_id: str

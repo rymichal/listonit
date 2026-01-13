@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/icons.dart';
 import '../domain/shopping_list.dart';
+import '../providers/lists_provider.dart';
 import 'widgets/edit_list_modal.dart';
 
 class ListDetailScreen extends ConsumerStatefulWidget {
@@ -264,6 +265,14 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Duplicate list'),
+              onTap: () {
+                Navigator.pop(context);
+                _duplicateList(context);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.share),
               title: const Text('Share list'),
               onTap: () {
@@ -319,7 +328,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Delete list?'),
         content: Text(
-          'Are you sure you want to delete "${widget.list.name}"? This action cannot be undone.',
+          'Are you sure you want to delete "${widget.list.name}"? This will remove the list for all members.',
         ),
         actions: [
           TextButton(
@@ -327,10 +336,15 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.pop(context);
-              // TODO: Implement delete list API call
+
+              final success = await ref.read(listsProvider.notifier).deleteList(widget.list.id);
+
+              if (mounted && success) {
+                Navigator.pop(context);
+                _showUndoSnackbar(context);
+              }
             },
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
@@ -340,6 +354,54 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
         ],
       ),
     );
+  }
+
+  void _showUndoSnackbar(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('List "${widget.list.name}" deleted'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            ref.read(listsProvider.notifier).undoDeleteList();
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _duplicateList(BuildContext context) async {
+    final duplicatedList = await ref.read(listsProvider.notifier).duplicateList(widget.list.id);
+
+    if (!mounted) return;
+
+    if (duplicatedList != null) {
+      // Pop current screen and navigate to the new duplicated list
+      Navigator.pushReplacement(
+        this.context,
+        MaterialPageRoute(
+          builder: (ctx) => ListDetailScreen(list: duplicatedList),
+        ),
+      );
+
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        SnackBar(
+          content: Text('Created "${duplicatedList.name}"'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      final error = ref.read(listsProvider).error;
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        SnackBar(
+          content: Text(error ?? 'Failed to duplicate list'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Theme.of(this.context).colorScheme.error,
+        ),
+      );
+    }
   }
 }
 

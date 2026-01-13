@@ -56,3 +56,27 @@ class ListRepository:
     def delete(self, shopping_list: ShoppingList) -> None:
         self.db.delete(shopping_list)
         self.db.commit()
+
+    def duplicate(
+        self, original: ShoppingList, new_name: str, owner_id: str
+    ) -> ShoppingList:
+        new_list = ShoppingList(
+            owner_id=owner_id,
+            name=new_name,
+            color=original.color,
+            icon=original.icon,
+        )
+        self.db.add(new_list)
+        self.db.flush()
+
+        # Add owner as member with owner role
+        member = ListMember(
+            list_id=new_list.id,
+            user_id=owner_id,
+            role=MemberRole.owner,
+        )
+        self.db.add(member)
+        self.db.commit()
+        self.db.refresh(new_list)
+
+        return new_list

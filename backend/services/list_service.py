@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from repositories.list_repository import ListRepository
-from schemas.list import ListCreate, ListUpdate, ListResponse
+from schemas.list import ListCreate, ListUpdate, ListDuplicate, ListResponse
 from models.shopping_list import ShoppingList
 
 
@@ -81,3 +81,25 @@ class ListService:
             if member.user_id == user_id and member.role.value in ("owner", "editor"):
                 return True
         return False
+
+    def duplicate_list(
+        self, list_id: str, duplicate_data: ListDuplicate, user_id: str
+    ) -> ListResponse:
+        original = self.repository.get_by_id(list_id)
+
+        if not original:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="List not found",
+            )
+
+        if not self._user_has_access(original, user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this list",
+            )
+
+        new_name = duplicate_data.name or f"{original.name} (Copy)"
+        new_list = self.repository.duplicate(original, new_name, user_id)
+
+        return ListResponse.model_validate(new_list)

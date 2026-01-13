@@ -62,6 +62,16 @@ class ListApi {
   Future<void> deleteList(String id) async {
     await _client.delete('/lists/$id');
   }
+
+  Future<ShoppingList> duplicateList(String id, {String? name}) async {
+    return _client.post<ShoppingList>(
+      '/lists/$id/duplicate',
+      data: {
+        if (name != null) 'name': name,
+      },
+      fromJson: (data) => ShoppingList.fromJson(data as Map<String, dynamic>),
+    );
+  }
 }
 
 final listApiProvider = Provider<ListApi>((ref) {

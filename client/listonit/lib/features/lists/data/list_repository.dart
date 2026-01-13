@@ -45,6 +45,10 @@ class ListRepository {
     await _api.deleteList(id);
   }
 
+  Future<ShoppingList> duplicateList(String id, {String? name}) async {
+    return _api.duplicateList(id, name: name);
+  }
+
   bool isNetworkError(Object error) {
     return error is NetworkException;
   }

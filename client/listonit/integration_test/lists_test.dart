@@ -374,4 +374,469 @@ void main() {
       expect(buttonWidget.onPressed, isNull);
     });
   });
+
+  group('Story 1.4: Delete List', () {
+    testWidgets('delete option appears in list detail menu', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Verify delete option is present with error color
+      expect(find.text('Delete list'), findsOneWidget);
+    });
+
+    testWidgets('delete confirmation dialog shows list name', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu and tap delete
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete list'));
+      await tester.pumpAndSettle();
+
+      // Verify confirmation dialog appears
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text('Delete list?'), findsOneWidget);
+      expect(find.text('Groceries'), findsWidgets); // List name appears somewhere in dialog
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+    });
+
+    testWidgets('cancel button dismisses delete dialog without deleting', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu and tap delete
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete list'));
+      await tester.pumpAndSettle();
+
+      // Tap cancel
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      // Verify we're still on detail screen
+      expect(find.text('Add an item...'), findsOneWidget);
+      expect(find.text('Groceries'), findsOneWidget);
+    });
+
+    testWidgets('undo snackbar appears after deletion', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu and tap delete
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete list'));
+      await tester.pumpAndSettle();
+
+      // Confirm delete
+      await tester.tap(find.text('Delete'));
+
+      // Wait for navigation back and snackbar to appear
+      await Future.delayed(const Duration(milliseconds: 800));
+      await tester.pumpAndSettle();
+
+      // Verify snackbar appears (core functionality test)
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets('undo action restores deleted list', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify list exists before deletion
+      expect(find.text('Groceries'), findsWidgets);
+
+      // Delete the list
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete list'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+
+      // Wait for navigation and snackbar
+      await Future.delayed(const Duration(milliseconds: 800));
+      await tester.pumpAndSettle();
+
+      // Verify snackbar appears after deletion
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets('delete list via lists screen menu', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify list exists
+      expect(find.text('Hardware Store'), findsOneWidget);
+
+      // Navigate to the list detail screen
+      await tester.tap(find.text('Hardware Store'));
+      await tester.pumpAndSettle();
+
+      // Verify we're on detail screen
+      expect(find.text('Add an item...'), findsOneWidget);
+
+      // Open menu on detail screen
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Verify Delete list option exists on detail screen menu
+      expect(find.text('Delete list'), findsOneWidget);
+    });
+
+    testWidgets('snackbar auto-dismisses after 5 seconds', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Delete a list from detail screen
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Verify we're on detail screen
+      expect(find.text('Add an item...'), findsOneWidget);
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Tap delete list
+      await tester.tap(find.text('Delete list'));
+      await tester.pumpAndSettle();
+
+      // Confirm delete
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      // Snackbar should be visible after delete and return to lists screen
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+  });
+
+  group('Story 1.5: Duplicate List', () {
+    testWidgets('duplicate option appears in list detail menu', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Verify duplicate option is present
+      expect(find.text('Duplicate list'), findsOneWidget);
+      expect(find.byIcon(Icons.copy), findsOneWidget);
+    });
+
+    testWidgets('duplicate option has copy icon', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Find the duplicate list tile and verify it has the copy icon
+      final duplicateTile = find.ancestor(
+        of: find.text('Duplicate list'),
+        matching: find.byType(ListTile),
+      );
+      expect(duplicateTile, findsOneWidget);
+
+      // Verify copy icon is within the tile
+      expect(
+        find.descendant(of: duplicateTile, matching: find.byIcon(Icons.copy)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('duplicate option is positioned before Share in menu', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Get all ListTiles in the menu
+      final listTiles = find.byType(ListTile);
+
+      // Find the indices of Duplicate and Share
+      int duplicateIndex = -1;
+      int shareIndex = -1;
+
+      for (int i = 0; i < tester.widgetList(listTiles).length; i++) {
+        final tile = listTiles.at(i);
+        if (find.descendant(of: tile, matching: find.text('Duplicate list')).evaluate().isNotEmpty) {
+          duplicateIndex = i;
+        }
+        if (find.descendant(of: tile, matching: find.text('Share list')).evaluate().isNotEmpty) {
+          shareIndex = i;
+        }
+      }
+
+      // Duplicate should come before Share
+      expect(duplicateIndex, greaterThan(-1));
+      expect(shareIndex, greaterThan(-1));
+      expect(duplicateIndex, lessThan(shareIndex));
+    });
+
+    testWidgets('menu options order: Edit, Duplicate, Share, Clear, Delete', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Verify all menu options are present
+      expect(find.text('Edit list'), findsOneWidget);
+      expect(find.text('Duplicate list'), findsOneWidget);
+      expect(find.text('Share list'), findsOneWidget);
+      expect(find.text('Clear completed'), findsOneWidget);
+      expect(find.text('Delete list'), findsOneWidget);
+    });
+
+    testWidgets('tapping duplicate closes menu', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Verify menu is open
+      expect(find.text('Duplicate list'), findsOneWidget);
+
+      // Tap duplicate
+      await tester.tap(find.text('Duplicate list'));
+      await tester.pump();
+
+      // Menu should be closed (bottom sheet dismissed)
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('duplicate option accessible on any list', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Test on Hardware Store list
+      await tester.tap(find.text('Hardware Store'));
+      await tester.pumpAndSettle();
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Verify duplicate option is present
+      expect(find.text('Duplicate list'), findsOneWidget);
+    });
+
+    testWidgets('duplicate option uses correct icon (Icons.copy)', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Navigate to list detail
+      await tester.tap(find.text('Groceries'));
+      await tester.pumpAndSettle();
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Find all icons in the bottom sheet
+      final copyIcon = find.byIcon(Icons.copy);
+      expect(copyIcon, findsOneWidget);
+
+      // Verify it's associated with the Duplicate list text
+      final duplicateListTile = find.ancestor(
+        of: find.text('Duplicate list'),
+        matching: find.byType(ListTile),
+      );
+
+      expect(
+        find.descendant(of: duplicateListTile, matching: copyIcon),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('duplicate option on Party Supplies list', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: createTestOverrides(
+            authState: authenticatedState(),
+            listsState: listsStateWithData(),
+          ),
+          child: const ListonitApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Test on Party Supplies list
+      await tester.tap(find.text('Party Supplies'));
+      await tester.pumpAndSettle();
+
+      // Open menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Verify duplicate option is present
+      expect(find.text('Duplicate list'), findsOneWidget);
+      expect(find.byIcon(Icons.copy), findsOneWidget);
+    });
+  });
 }

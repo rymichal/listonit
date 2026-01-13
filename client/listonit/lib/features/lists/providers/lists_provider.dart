@@ -10,12 +10,14 @@ class ListsState {
   final bool isLoading;
   final String? error;
   final String? pendingRetryId;
+  final ShoppingList? deletedList;
 
   const ListsState({
     this.lists = const [],
     this.isLoading = false,
     this.error,
     this.pendingRetryId,
+    this.deletedList,
   });
 
   ListsState copyWith({
@@ -23,12 +25,14 @@ class ListsState {
     bool? isLoading,
     String? error,
     String? pendingRetryId,
+    ShoppingList? deletedList,
   }) {
     return ListsState(
       lists: lists ?? this.lists,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       pendingRetryId: pendingRetryId,
+      deletedList: deletedList,
     );
   }
 }
@@ -195,8 +199,72 @@ class ListsNotifier extends StateNotifier<ListsState> {
     }
   }
 
+  Future<bool> deleteList(String listId) async {
+    final listIndex = state.lists.indexWhere((l) => l.id == listId);
+    if (listIndex == -1) {
+      state = state.copyWith(error: 'List not found');
+      return false;
+    }
+
+    final deletedList = state.lists[listIndex];
+
+    // Optimistic removal
+    state = state.copyWith(
+      lists: state.lists.where((l) => l.id != listId).toList(),
+      deletedList: deletedList,
+      error: null,
+    );
+
+    try {
+      await _repository.deleteList(listId);
+      return true;
+    } catch (e) {
+      // Rollback - restore the deleted list
+      state = state.copyWith(
+        lists: [deletedList, ...state.lists],
+        deletedList: null,
+        error: e is ApiException ? e.message : 'Failed to delete list',
+      );
+      return false;
+    }
+  }
+
+  void undoDeleteList() {
+    final deletedList = state.deletedList;
+    if (deletedList == null) return;
+
+    state = state.copyWith(
+      lists: [deletedList, ...state.lists],
+      deletedList: null,
+      error: null,
+    );
+  }
+
+  void clearDeletedList() {
+    state = state.copyWith(deletedList: null);
+  }
+
   void clearError() {
     state = state.copyWith(error: null);
+  }
+
+  Future<ShoppingList?> duplicateList(String listId, {String? name}) async {
+    try {
+      final duplicatedList = await _repository.duplicateList(listId, name: name);
+
+      // Add the new list to the beginning of the list
+      state = state.copyWith(
+        lists: [duplicatedList, ...state.lists],
+        error: null,
+      );
+
+      return duplicatedList;
+    } catch (e) {
+      state = state.copyWith(
+        error: e is ApiException ? e.message : 'Failed to duplicate list',
+      );
+      return null;
+    }
   }
 }
 
