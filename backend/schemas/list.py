@@ -1,0 +1,30 @@
+from datetime import datetime
+from pydantic import BaseModel, Field
+
+
+class ListBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    color: str | None = Field(default="#4CAF50", pattern=r"^#[0-9A-Fa-f]{6}$")
+    icon: str | None = Field(default="shopping_cart", max_length=50)
+
+
+class ListCreate(ListBase):
+    pass
+
+
+class ListUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    icon: str | None = Field(default=None, max_length=50)
+    is_archived: bool | None = None
+
+
+class ListResponse(ListBase):
+    id: str
+    owner_id: str
+    is_archived: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
