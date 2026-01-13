@@ -1,5 +1,7 @@
 # Story 1.6: Archive/Restore Lists
 
+SKIP FOR NOW:
+
 ## Description
 Users can archive lists for later reference without deleting.
 

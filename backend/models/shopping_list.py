@@ -33,3 +33,6 @@ class ShoppingList(Base):
     members: Mapped[list["ListMember"]] = relationship(
         "ListMember", back_populates="shopping_list", cascade="all, delete-orphan"
     )
+    items: Mapped[list["Item"]] = relationship(
+        "Item", back_populates="shopping_list", cascade="all, delete-orphan"
+    )

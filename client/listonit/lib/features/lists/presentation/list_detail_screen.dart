@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/icons.dart';
+import '../../items/domain/item.dart';
+import '../../items/providers/items_provider.dart';
 import '../domain/shopping_list.dart';
 import '../providers/lists_provider.dart';
 import 'widgets/edit_list_modal.dart';
@@ -22,7 +24,15 @@ class ListDetailScreen extends ConsumerStatefulWidget {
 class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   final _itemController = TextEditingController();
   final _focusNode = FocusNode();
-  final List<ListItem> _items = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Load items when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(itemsProvider(widget.list.id).notifier).loadItems();
+    });
+  }
 
   @override
   void dispose() {
@@ -31,43 +41,30 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
     super.dispose();
   }
 
-  void _addItem() {
+  Future<void> _addItem() async {
     final text = _itemController.text.trim();
     if (text.isEmpty) return;
 
-    setState(() {
-      _items.add(ListItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: text,
-        isChecked: false,
-      ));
-      _itemController.clear();
-    });
+    _itemController.clear();
     _focusNode.requestFocus();
+
+    // Support comma-separated batch add
+    await ref.read(itemsProvider(widget.list.id).notifier).addItemsBatch(text);
   }
 
-  void _toggleItem(String id) {
-    setState(() {
-      final index = _items.indexWhere((item) => item.id == id);
-      if (index != -1) {
-        _items[index] = _items[index].copyWith(isChecked: !_items[index].isChecked);
-      }
-    });
+  Future<void> _toggleItem(String id) async {
+    await ref.read(itemsProvider(widget.list.id).notifier).toggleItem(id);
   }
 
-  void _deleteItem(String id) {
-    setState(() {
-      _items.removeWhere((item) => item.id == id);
-    });
+  Future<void> _deleteItem(String id) async {
+    await ref.read(itemsProvider(widget.list.id).notifier).deleteItem(id);
   }
 
   @override
   Widget build(BuildContext context) {
     final listColor = ListColors.fromHex(widget.list.color);
     final listIcon = ListIcons.getIcon(widget.list.icon);
-
-    final uncheckedItems = _items.where((item) => !item.isChecked).toList();
-    final checkedItems = _items.where((item) => item.isChecked).toList();
+    final itemsState = ref.watch(itemsProvider(widget.list.id));
 
     return Scaffold(
       appBar: AppBar(
@@ -115,7 +112,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                     controller: _itemController,
                     focusNode: _focusNode,
                     decoration: InputDecoration(
-                      hintText: 'Add an item...',
+                      hintText: 'Add an item... (use commas for multiple)',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -142,38 +139,46 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
             ),
           ),
           Expanded(
-            child: _items.isEmpty
-                ? _buildEmptyState(context, listColor)
-                : ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: [
-                      ...uncheckedItems.map((item) => _buildItemTile(
-                            item,
-                            listColor,
-                          )),
-                      if (checkedItems.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          'Completed (${checkedItems.length})',
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                        ),
-                        const SizedBox(height: 8),
-                        ...checkedItems.map((item) => _buildItemTile(
-                              item,
-                              listColor,
-                            )),
-                      ],
-                      const SizedBox(height: 16),
-                    ],
-                  ),
+            child: _buildItemsContent(context, itemsState, listColor),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildItemsContent(
+    BuildContext context,
+    ItemsState itemsState,
+    Color listColor,
+  ) {
+    if (itemsState.isLoading && itemsState.items.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (itemsState.items.isEmpty) {
+      return _buildEmptyState(context, listColor);
+    }
+
+    final uncheckedItems = itemsState.uncheckedItems;
+    final checkedItems = itemsState.checkedItems;
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
+        ...uncheckedItems.map((item) => _buildItemTile(item, listColor)),
+        if (checkedItems.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Completed (${checkedItems.length})',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 8),
+          ...checkedItems.map((item) => _buildItemTile(item, listColor)),
+        ],
+        const SizedBox(height: 16),
+      ],
     );
   }
 
@@ -206,7 +211,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
     );
   }
 
-  Widget _buildItemTile(ListItem item, Color listColor) {
+  Widget _buildItemTile(Item item, Color listColor) {
     return Dismissible(
       key: Key(item.id),
       direction: DismissDirection.endToStart,
@@ -240,6 +245,12 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                   : null,
             ),
           ),
+          subtitle: item.quantity > 1
+              ? Text(
+                  'Qty: ${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                )
+              : null,
           onTap: () => _toggleItem(item.id),
         ),
       ),
@@ -285,9 +296,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
               title: const Text('Clear completed'),
               onTap: () {
                 Navigator.pop(context);
-                setState(() {
-                  _items.removeWhere((item) => item.isChecked);
-                });
+                _clearCompleted();
               },
             ),
             ListTile(
@@ -308,6 +317,10 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _clearCompleted() async {
+    await ref.read(itemsProvider(widget.list.id).notifier).clearCheckedItems();
   }
 
   void _showEditModal(BuildContext context) {
@@ -402,29 +415,5 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
         ),
       );
     }
-  }
-}
-
-class ListItem {
-  final String id;
-  final String name;
-  final bool isChecked;
-
-  const ListItem({
-    required this.id,
-    required this.name,
-    required this.isChecked,
-  });
-
-  ListItem copyWith({
-    String? id,
-    String? name,
-    bool? isChecked,
-  }) {
-    return ListItem(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      isChecked: isChecked ?? this.isChecked,
-    );
   }
 }
