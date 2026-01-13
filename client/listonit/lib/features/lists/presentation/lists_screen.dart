@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/providers/auth_provider.dart';
 import '../providers/lists_provider.dart';
 import 'widgets/create_list_modal.dart';
 import 'widgets/list_tile.dart';
@@ -73,6 +74,15 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Lists'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () {
+              ref.read(authProvider.notifier).logout();
+            },
+          ),
+        ],
       ),
       body: _buildBody(state),
       floatingActionButton: FloatingActionButton(

@@ -17,25 +17,6 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     # Create database tables on startup
     Base.metadata.create_all(bind=engine)
-
-    # Ensure mock user exists for development
-    from sqlalchemy.orm import Session
-    from database import SessionLocal
-
-    db: Session = SessionLocal()
-    try:
-        existing_user = db.query(User).filter(User.id == settings.mock_user_id).first()
-        if not existing_user:
-            mock_user = User(
-                id=settings.mock_user_id,
-                email="dev@listonit.app",
-                name="Dev User",
-            )
-            db.add(mock_user)
-            db.commit()
-    finally:
-        db.close()
-
     yield
 
 

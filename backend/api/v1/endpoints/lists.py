@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from auth.dependencies import get_current_user_id
 from database import get_db
-from api.deps import get_current_user_id
-from services.list_service import ListService
 from schemas.list import ListCreate, ListUpdate, ListResponse
+from services.list_service import ListService
 
 router = APIRouter(prefix="/lists", tags=["lists"])
 
