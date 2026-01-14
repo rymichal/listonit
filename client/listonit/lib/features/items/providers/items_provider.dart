@@ -40,6 +40,10 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
   final ItemRepository _repository;
   final Uuid _uuid = const Uuid();
 
+  // For undo functionality
+  Item? _lastDeletedItem;
+  int? _lastDeletedIndex;
+
   ItemsNotifier(this._repository, String listId)
       : super(ItemsState(listId: listId));
 
@@ -234,6 +238,10 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
 
     final deletedItem = state.items[itemIndex];
 
+    // Store for undo
+    _lastDeletedItem = deletedItem;
+    _lastDeletedIndex = itemIndex;
+
     // Optimistic removal
     state = state.copyWith(
       items: state.items.where((i) => i.id != itemId).toList(),
@@ -248,12 +256,35 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
       return true;
     } catch (e) {
       // Rollback
+      _lastDeletedItem = null;
+      _lastDeletedIndex = null;
       state = state.copyWith(
         items: [...state.items.sublist(0, itemIndex), deletedItem, ...state.items.sublist(itemIndex)],
         error: e is ApiException ? e.message : 'Failed to delete item',
       );
       return false;
     }
+  }
+
+  /// Get the last deleted item for undo snackbar
+  Item? get lastDeletedItem => _lastDeletedItem;
+
+  /// Restore the last deleted item (undo)
+  Future<bool> undoDeleteItem() async {
+    final item = _lastDeletedItem;
+    if (item == null) return false;
+
+    // Clear undo state
+    _lastDeletedItem = null;
+    _lastDeletedIndex = null;
+
+    // Re-add the item
+    return addItem(
+      name: item.name,
+      quantity: item.quantity,
+      unit: item.unit,
+      note: item.note,
+    );
   }
 
   Future<bool> clearCheckedItems() async {
@@ -279,8 +310,144 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
     }
   }
 
+  Future<bool> updateItem({
+    required String itemId,
+    String? name,
+    int? quantity,
+    String? unit,
+    String? note,
+    bool? isChecked,
+  }) async {
+    final itemIndex = state.items.indexWhere((i) => i.id == itemId);
+    if (itemIndex == -1) return false;
+
+    final oldItem = state.items[itemIndex];
+
+    // Optimistic update
+    final updatedItem = oldItem.copyWith(
+      name: name ?? oldItem.name,
+      quantity: quantity ?? oldItem.quantity,
+      unit: unit,
+      note: note,
+      isChecked: isChecked ?? oldItem.isChecked,
+      updatedAt: DateTime.now(),
+    );
+
+    final optimisticItems = state.items.toList();
+    optimisticItems[itemIndex] = updatedItem;
+    state = state.copyWith(items: optimisticItems, error: null);
+
+    try {
+      final serverItem = await _repository.updateItem(
+        listId: state.listId,
+        itemId: itemId,
+        name: name,
+        quantity: quantity,
+        unit: unit,
+        note: note,
+        isChecked: isChecked,
+      );
+
+      state = state.copyWith(
+        items: state.items.map((i) => i.id == itemId ? serverItem : i).toList(),
+      );
+
+      return true;
+    } catch (e) {
+      if (_repository.isNetworkError(e)) {
+        // Keep optimistic update for offline
+        state = state.copyWith(
+          error: 'Saved locally. Will sync when online.',
+        );
+        return true;
+      } else {
+        // Rollback
+        state = state.copyWith(
+          items: state.items.map((i) => i.id == itemId ? oldItem : i).toList(),
+          error: e is ApiException ? e.message : 'Failed to update item',
+        );
+        return false;
+      }
+    }
+  }
+
   void clearError() {
     state = state.copyWith(error: null);
+  }
+
+  /// Batch check/uncheck multiple items
+  Future<bool> batchCheckItems(List<String> itemIds, bool checked) async {
+    if (itemIds.isEmpty) return true;
+
+    // Store old states for rollback
+    final oldItems = Map.fromEntries(
+      state.items.where((i) => itemIds.contains(i.id)).map((i) => MapEntry(i.id, i)),
+    );
+
+    // Optimistic update
+    final now = DateTime.now();
+    state = state.copyWith(
+      items: state.items.map((i) {
+        if (itemIds.contains(i.id)) {
+          return i.copyWith(
+            isChecked: checked,
+            updatedAt: now,
+          );
+        }
+        return i;
+      }).toList(),
+      error: null,
+    );
+
+    try {
+      await _repository.batchCheckItems(
+        listId: state.listId,
+        itemIds: itemIds,
+        checked: checked,
+      );
+      return true;
+    } catch (e) {
+      // Rollback
+      state = state.copyWith(
+        items: state.items.map((i) {
+          if (oldItems.containsKey(i.id)) {
+            return oldItems[i.id]!;
+          }
+          return i;
+        }).toList(),
+        error: e is ApiException ? e.message : 'Failed to update items',
+      );
+      return false;
+    }
+  }
+
+  /// Batch delete multiple items
+  Future<bool> batchDeleteItems(List<String> itemIds) async {
+    if (itemIds.isEmpty) return true;
+
+    // Store for potential undo (though batch undo is complex)
+    final deletedItems = state.items.where((i) => itemIds.contains(i.id)).toList();
+
+    // Optimistic removal
+    state = state.copyWith(
+      items: state.items.where((i) => !itemIds.contains(i.id)).toList(),
+      error: null,
+    );
+
+    try {
+      await _repository.batchDeleteItems(
+        listId: state.listId,
+        itemIds: itemIds,
+      );
+      return true;
+    } catch (e) {
+      // Rollback
+      state = state.copyWith(
+        items: [...state.items, ...deletedItems],
+        error: e is ApiException ? e.message : 'Failed to delete items',
+      );
+      return false;
+    }
   }
 }
 

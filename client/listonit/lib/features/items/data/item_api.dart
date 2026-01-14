@@ -94,6 +94,34 @@ class ItemApi {
   Future<void> clearCheckedItems(String listId) async {
     await _client.delete('/lists/$listId/items');
   }
+
+  Future<int> batchCheckItems({
+    required String listId,
+    required List<String> itemIds,
+    required bool checked,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/lists/$listId/items/batch-check',
+      data: {
+        'item_ids': itemIds,
+        'checked': checked,
+      },
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+    return response['count'] as int;
+  }
+
+  Future<int> batchDeleteItems({
+    required String listId,
+    required List<String> itemIds,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/lists/$listId/items/batch-delete',
+      data: {'item_ids': itemIds},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+    return response['count'] as int;
+  }
 }
 
 final itemApiProvider = Provider<ItemApi>((ref) {

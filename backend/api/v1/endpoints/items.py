@@ -3,7 +3,15 @@ from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user_id
 from database import get_db
-from schemas.item import ItemCreate, ItemUpdate, ItemResponse, ItemBatchCreate
+from schemas.item import (
+    ItemCreate,
+    ItemUpdate,
+    ItemResponse,
+    ItemBatchCreate,
+    ItemBatchCheck,
+    ItemBatchDelete,
+    BatchOperationResponse,
+)
 from services.item_service import ItemService
 
 router = APIRouter(prefix="/lists/{list_id}/items", tags=["items"])
@@ -103,3 +111,31 @@ def clear_checked_items(
     service = ItemService(db)
     count = service.clear_checked(list_id, current_user_id)
     return {"deleted_count": count}
+
+
+@router.post("/batch-check", response_model=BatchOperationResponse)
+def batch_check_items(
+    list_id: str,
+    batch_data: ItemBatchCheck,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Check or uncheck multiple items at once."""
+    service = ItemService(db)
+    count = service.batch_check(
+        list_id, batch_data.item_ids, batch_data.checked, current_user_id
+    )
+    return BatchOperationResponse(success=True, count=count)
+
+
+@router.post("/batch-delete", response_model=BatchOperationResponse)
+def batch_delete_items(
+    list_id: str,
+    batch_data: ItemBatchDelete,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Delete multiple items at once."""
+    service = ItemService(db)
+    count = service.batch_delete(list_id, batch_data.item_ids, current_user_id)
+    return BatchOperationResponse(success=True, count=count)

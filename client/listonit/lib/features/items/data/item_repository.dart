@@ -76,6 +76,25 @@ class ItemRepository {
     await _api.clearCheckedItems(listId);
   }
 
+  Future<int> batchCheckItems({
+    required String listId,
+    required List<String> itemIds,
+    required bool checked,
+  }) async {
+    return _api.batchCheckItems(
+      listId: listId,
+      itemIds: itemIds,
+      checked: checked,
+    );
+  }
+
+  Future<int> batchDeleteItems({
+    required String listId,
+    required List<String> itemIds,
+  }) async {
+    return _api.batchDeleteItems(listId: listId, itemIds: itemIds);
+  }
+
   bool isNetworkError(Object error) {
     return error is NetworkException;
   }

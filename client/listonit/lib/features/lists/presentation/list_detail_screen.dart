@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/icons.dart';
-import '../../items/domain/item.dart';
+import '../../items/presentation/widgets/add_item_form.dart';
+import '../../items/presentation/widgets/selectable_item_tile.dart';
+import '../../items/providers/item_selection_provider.dart';
 import '../../items/providers/items_provider.dart';
 import '../domain/shopping_list.dart';
 import '../providers/lists_provider.dart';
@@ -22,9 +24,6 @@ class ListDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
-  final _itemController = TextEditingController();
-  final _focusNode = FocusNode();
-
   @override
   void initState() {
     super.initState();
@@ -35,113 +34,198 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   }
 
   @override
-  void dispose() {
-    _itemController.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  Future<void> _addItem() async {
-    final text = _itemController.text.trim();
-    if (text.isEmpty) return;
-
-    _itemController.clear();
-    _focusNode.requestFocus();
-
-    // Support comma-separated batch add
-    await ref.read(itemsProvider(widget.list.id).notifier).addItemsBatch(text);
-  }
-
-  Future<void> _toggleItem(String id) async {
-    await ref.read(itemsProvider(widget.list.id).notifier).toggleItem(id);
-  }
-
-  Future<void> _deleteItem(String id) async {
-    await ref.read(itemsProvider(widget.list.id).notifier).deleteItem(id);
-  }
-
-  @override
   Widget build(BuildContext context) {
     final listColor = ListColors.fromHex(widget.list.color);
     final listIcon = ListIcons.getIcon(widget.list.icon);
     final itemsState = ref.watch(itemsProvider(widget.list.id));
+    final selectionState = ref.watch(itemSelectionProvider);
+    final isSelectionMode = selectionState.isSelectionMode &&
+        selectionState.listId == widget.list.id;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
+    return PopScope(
+      canPop: !isSelectionMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && isSelectionMode) {
+          ref.read(itemSelectionProvider.notifier).exitSelectionMode();
+        }
+      },
+      child: Scaffold(
+        appBar: isSelectionMode
+            ? _buildSelectionAppBar(context, selectionState, listColor, itemsState)
+            : _buildNormalAppBar(context, listColor, listIcon),
+        body: Column(
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: listColor.withAlpha(51),
-                borderRadius: BorderRadius.circular(8),
+            if (!isSelectionMode)
+              AddItemForm(
+                listId: widget.list.id,
+                accentColor: listColor,
               ),
-              child: Icon(
-                listIcon,
-                color: listColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                widget.list.name,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: _buildItemsContent(context, itemsState, listColor),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () {
-              _showOptionsMenu(context);
-            },
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildNormalAppBar(
+    BuildContext context,
+    Color listColor,
+    IconData listIcon,
+  ) {
+    return AppBar(
+      title: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: listColor.withAlpha(51),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              listIcon,
+              color: listColor,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              widget.list.name,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _itemController,
-                    focusNode: _focusNode,
-                    decoration: InputDecoration(
-                      hintText: 'Add an item... (use commas for multiple)',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => _addItem(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: _addItem,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: listColor,
-                    padding: const EdgeInsets.all(12),
-                    minimumSize: const Size(48, 48),
-                  ),
-                  child: const Icon(Icons.add),
-                ),
-              ],
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.more_vert),
+          onPressed: () {
+            _showOptionsMenu(context);
+          },
+        ),
+      ],
+    );
+  }
+
+  PreferredSizeWidget _buildSelectionAppBar(
+    BuildContext context,
+    ItemSelectionState selectionState,
+    Color listColor,
+    ItemsState itemsState,
+  ) {
+    final selectedCount = selectionState.selectedCount;
+    final totalCount = itemsState.items.length;
+
+    return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: () {
+          ref.read(itemSelectionProvider.notifier).exitSelectionMode();
+        },
+      ),
+      title: Text('$selectedCount selected'),
+      actions: [
+        // Select All / Deselect All
+        IconButton(
+          icon: Icon(
+            selectedCount == totalCount
+                ? Icons.deselect
+                : Icons.select_all,
+          ),
+          tooltip: selectedCount == totalCount ? 'Deselect all' : 'Select all',
+          onPressed: () {
+            if (selectedCount == totalCount) {
+              ref.read(itemSelectionProvider.notifier).deselectAll();
+            } else {
+              ref.read(itemSelectionProvider.notifier).selectAll(
+                    itemsState.items.map((i) => i.id).toList(),
+                  );
+            }
+          },
+        ),
+        // Check All Selected
+        IconButton(
+          icon: const Icon(Icons.check_circle_outline),
+          tooltip: 'Check selected',
+          onPressed: () => _batchCheckSelected(true),
+        ),
+        // Uncheck All Selected
+        IconButton(
+          icon: const Icon(Icons.radio_button_unchecked),
+          tooltip: 'Uncheck selected',
+          onPressed: () => _batchCheckSelected(false),
+        ),
+        // Delete Selected
+        IconButton(
+          icon: Icon(
+            Icons.delete_outline,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          tooltip: 'Delete selected',
+          onPressed: () => _batchDeleteSelected(selectedCount),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _batchCheckSelected(bool checked) async {
+    final selectedIds =
+        ref.read(itemSelectionProvider).selectedIds.toList();
+    if (selectedIds.isEmpty) return;
+
+    await ref
+        .read(itemsProvider(widget.list.id).notifier)
+        .batchCheckItems(selectedIds, checked);
+
+    ref.read(itemSelectionProvider.notifier).exitSelectionMode();
+  }
+
+  Future<void> _batchDeleteSelected(int count) async {
+    final selectedIds =
+        ref.read(itemSelectionProvider).selectedIds.toList();
+    if (selectedIds.isEmpty) return;
+
+    // Confirmation for bulk delete (>3 items)
+    if (count > 3) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete items?'),
+          content: Text('Are you sure you want to delete $count items?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
             ),
-          ),
-          Expanded(
-            child: _buildItemsContent(context, itemsState, listColor),
-          ),
-        ],
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+    }
+
+    await ref
+        .read(itemsProvider(widget.list.id).notifier)
+        .batchDeleteItems(selectedIds);
+
+    ref.read(itemSelectionProvider.notifier).exitSelectionMode();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Deleted $count items'),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -165,7 +249,12 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
-        ...uncheckedItems.map((item) => _buildItemTile(item, listColor)),
+        ...uncheckedItems.map((item) => SelectableItemTile(
+              key: Key(item.id),
+              item: item,
+              listId: widget.list.id,
+              accentColor: listColor,
+            )),
         if (checkedItems.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text(
@@ -175,7 +264,12 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                 ),
           ),
           const SizedBox(height: 8),
-          ...checkedItems.map((item) => _buildItemTile(item, listColor)),
+          ...checkedItems.map((item) => SelectableItemTile(
+                key: Key(item.id),
+                item: item,
+                listId: widget.list.id,
+                accentColor: listColor,
+              )),
         ],
         const SizedBox(height: 16),
       ],
@@ -207,52 +301,6 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
                 ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildItemTile(Item item, Color listColor) {
-    return Dismissible(
-      key: Key(item.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 16),
-        color: Theme.of(context).colorScheme.error,
-        child: const Icon(
-          Icons.delete,
-          color: Colors.white,
-        ),
-      ),
-      onDismissed: (_) => _deleteItem(item.id),
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        child: ListTile(
-          leading: Checkbox(
-            value: item.isChecked,
-            onChanged: (_) => _toggleItem(item.id),
-            activeColor: listColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          title: Text(
-            item.name,
-            style: TextStyle(
-              decoration: item.isChecked ? TextDecoration.lineThrough : null,
-              color: item.isChecked
-                  ? Theme.of(context).colorScheme.onSurfaceVariant
-                  : null,
-            ),
-          ),
-          subtitle: item.quantity > 1
-              ? Text(
-                  'Qty: ${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                )
-              : null,
-          onTap: () => _toggleItem(item.id),
-        ),
       ),
     );
   }

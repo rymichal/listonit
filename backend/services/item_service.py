@@ -85,6 +85,20 @@ class ItemService:
 
         return self.repository.delete_checked(list_id)
 
+    def batch_check(
+        self, list_id: str, item_ids: list[str], checked: bool, user_id: str
+    ) -> int:
+        # Verify list exists and user has access
+        self._verify_list_access(list_id, user_id)
+
+        return self.repository.batch_check(list_id, item_ids, checked, user_id)
+
+    def batch_delete(self, list_id: str, item_ids: list[str], user_id: str) -> int:
+        # Verify list exists and user has access
+        self._verify_list_access(list_id, user_id)
+
+        return self.repository.batch_delete(list_id, item_ids)
+
     def _verify_list_access(self, list_id: str, user_id: str) -> None:
         shopping_list = self.list_repository.get_by_id(list_id)
 

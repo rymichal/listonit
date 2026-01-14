@@ -100,3 +100,31 @@ class ItemRepository:
         )
         self.db.commit()
         return count
+
+    def batch_check(
+        self, list_id: str, item_ids: list[str], checked: bool, user_id: str
+    ) -> int:
+        items = (
+            self.db.query(Item)
+            .filter(Item.id.in_(item_ids), Item.list_id == list_id)
+            .all()
+        )
+
+        now = datetime.utcnow()
+        for item in items:
+            item.is_checked = checked
+            item.checked_at = now if checked else None
+            item.checked_by = user_id if checked else None
+            item.updated_at = now
+
+        self.db.commit()
+        return len(items)
+
+    def batch_delete(self, list_id: str, item_ids: list[str]) -> int:
+        count = (
+            self.db.query(Item)
+            .filter(Item.id.in_(item_ids), Item.list_id == list_id)
+            .delete(synchronize_session=False)
+        )
+        self.db.commit()
+        return count

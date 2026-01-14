@@ -39,3 +39,17 @@ class ItemResponse(ItemBase):
 
 class ItemBatchCreate(BaseModel):
     names: list[str] = Field(..., min_length=1)
+
+
+class ItemBatchCheck(BaseModel):
+    item_ids: list[str] = Field(..., min_length=1)
+    checked: bool
+
+
+class ItemBatchDelete(BaseModel):
+    item_ids: list[str] = Field(..., min_length=1)
+
+
+class BatchOperationResponse(BaseModel):
+    success: bool
+    count: int
