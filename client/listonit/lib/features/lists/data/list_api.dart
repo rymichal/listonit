@@ -72,6 +72,36 @@ class ListApi {
       fromJson: (data) => ShoppingList.fromJson(data as Map<String, dynamic>),
     );
   }
+
+  Future<String> createShareLink(String listId, {required String role}) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/lists/$listId/link',
+      data: {'role': role},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+    return response['link'] as String;
+  }
+
+  Future<String> regenerateShareLink(String listId) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/lists/$listId/link/regenerate',
+      data: {},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+    return response['link'] as String;
+  }
+
+  Future<void> revokeShareLink(String listId) async {
+    await _client.delete('/lists/$listId/link');
+  }
+
+  Future<Map<String, dynamic>> joinViaShareLink(String token) async {
+    return _client.post<Map<String, dynamic>>(
+      '/join/$token',
+      data: {},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+  }
 }
 
 final listApiProvider = Provider<ListApi>((ref) {

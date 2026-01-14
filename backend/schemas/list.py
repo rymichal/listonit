@@ -23,6 +23,20 @@ class ListDuplicate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
 
 
+class ShareLinkCreate(BaseModel):
+    role: str = Field(default="editor", pattern=r"^(editor|viewer)$")
+
+
+class ShareLinkResponse(BaseModel):
+    link: str
+    role: str
+
+
+class JoinLinkResponse(BaseModel):
+    list_id: str
+    name: str
+
+
 class ListResponse(ListBase):
     id: str
     owner_id: str

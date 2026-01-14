@@ -21,6 +21,10 @@ class ShoppingList(Base):
     color: Mapped[str] = mapped_column(String(7), default="#4CAF50")
     icon: Mapped[str] = mapped_column(String(50), default="shopping_cart")
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Share link fields
+    share_token: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
+    share_token_role: Mapped[str] = mapped_column(String(20), default="editor")
+    share_token_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow
     )

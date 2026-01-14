@@ -3,7 +3,15 @@ from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user_id
 from database import get_db
-from schemas.list import ListCreate, ListUpdate, ListDuplicate, ListResponse
+from schemas.list import (
+    ListCreate,
+    ListUpdate,
+    ListDuplicate,
+    ListResponse,
+    ShareLinkCreate,
+    ShareLinkResponse,
+    JoinLinkResponse,
+)
 from services.list_service import ListService
 
 router = APIRouter(prefix="/lists", tags=["lists"])
@@ -74,3 +82,48 @@ def duplicate_list(
     """Duplicate a shopping list. Creates a new private copy owned by the current user."""
     service = ListService(db)
     return service.duplicate_list(list_id, duplicate_data, current_user_id)
+
+
+@router.post("/{list_id}/link", response_model=ShareLinkResponse)
+def create_share_link(
+    list_id: str,
+    link_data: ShareLinkCreate,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Create a shareable link for a list. Only the owner can create links."""
+    service = ListService(db)
+    return service.create_share_link(list_id, link_data, current_user_id)
+
+
+@router.post("/{list_id}/link/regenerate", response_model=ShareLinkResponse)
+def regenerate_share_link(
+    list_id: str,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Regenerate a share link token for a list. Only the owner can regenerate."""
+    service = ListService(db)
+    return service.regenerate_share_link(list_id, current_user_id)
+
+
+@router.delete("/{list_id}/link", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_share_link(
+    list_id: str,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Revoke a share link for a list. Only the owner can revoke."""
+    service = ListService(db)
+    service.revoke_share_link(list_id, current_user_id)
+
+
+@router.post("/join/{token}", response_model=JoinLinkResponse)
+def join_via_share_link(
+    token: str,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Join a list using a share link token. Adds the user as a member of the list."""
+    service = ListService(db)
+    return service.join_via_share_link(token, current_user_id)

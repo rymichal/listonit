@@ -1,5 +1,8 @@
 # Story 3.1: Share List via Email
 
+## Status
+**CANCELED** - Email sharing deferred beyond MVP. Core sharing infrastructure moved to Story 3.2.
+
 ## Description
 List owners can invite others by email.
 
@@ -69,6 +72,9 @@ async def invite_member(
 ## Dependencies
 - Story 1.1 (Create New List)
 - User Authentication
+
+## Notes for Future Implementation
+When this story is revisited, refer to Story 3.2 for shared infrastructure (ListMember model, role management, share UI patterns). Email-specific work will include sending invite notifications and managing pending invites for users not yet registered.
 
 ## Estimated Effort
 5 story points

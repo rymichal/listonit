@@ -10,6 +10,7 @@ import '../../items/providers/items_provider.dart';
 import '../domain/shopping_list.dart';
 import '../providers/lists_provider.dart';
 import 'widgets/edit_list_modal.dart';
+import 'widgets/share_link_modal.dart';
 
 class ListDetailScreen extends ConsumerStatefulWidget {
   final ShoppingList list;
@@ -336,7 +337,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
               title: const Text('Share list'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Implement share list
+                _showShareModal(context);
               },
             ),
             ListTile(
@@ -380,6 +381,21 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) => EditListModal(list: widget.list),
+    );
+  }
+
+  void _showShareModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => ShareLinkModal(
+        listId: widget.list.id,
+        listName: widget.list.name,
+      ),
     );
   }
 
