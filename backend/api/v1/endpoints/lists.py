@@ -11,6 +11,8 @@ from schemas.list import (
     ShareLinkCreate,
     ShareLinkResponse,
     JoinLinkResponse,
+    MemberInfo,
+    UpdateMemberRole,
 )
 from services.list_service import ListService
 
@@ -127,3 +129,39 @@ def join_via_share_link(
     """Join a list using a share link token. Adds the user as a member of the list."""
     service = ListService(db)
     return service.join_via_share_link(token, current_user_id)
+
+
+@router.get("/{list_id}/members", response_model=list[MemberInfo])
+def get_list_members(
+    list_id: str,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Get all members of a list. User must have access to the list."""
+    service = ListService(db)
+    return service.get_list_members(list_id, current_user_id)
+
+
+@router.patch("/{list_id}/members/{member_user_id}", response_model=MemberInfo)
+def update_member_role(
+    list_id: str,
+    member_user_id: str,
+    role_data: UpdateMemberRole,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Update a member's role. Only list owner can change roles."""
+    service = ListService(db)
+    return service.update_member_role(list_id, member_user_id, role_data, current_user_id)
+
+
+@router.delete("/{list_id}/members/{member_user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_member(
+    list_id: str,
+    member_user_id: str,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Remove a member from a list. Owner can remove anyone, members can only remove themselves."""
+    service = ListService(db)
+    service.remove_member(list_id, member_user_id, current_user_id)

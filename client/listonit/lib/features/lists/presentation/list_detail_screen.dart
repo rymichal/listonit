@@ -11,6 +11,8 @@ import '../domain/shopping_list.dart';
 import '../providers/lists_provider.dart';
 import 'widgets/edit_list_modal.dart';
 import 'widgets/share_link_modal.dart';
+import 'widgets/members_modal.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class ListDetailScreen extends ConsumerStatefulWidget {
   final ShoppingList list;
@@ -341,6 +343,14 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Members'),
+              onTap: () {
+                Navigator.pop(context);
+                _showMembersModal(context);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.delete_sweep),
               title: const Text('Clear completed'),
               onTap: () {
@@ -397,6 +407,25 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
         listName: widget.list.name,
       ),
     );
+  }
+
+  void _showMembersModal(BuildContext context) {
+    final authState = ref.read(authProvider);
+    if (authState.user != null) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) => MembersModal(
+          listId: widget.list.id,
+          currentUserId: authState.user!.id,
+          listOwnerId: widget.list.ownerId,
+        ),
+      );
+    }
   }
 
   void _showDeleteConfirmation(BuildContext context) {

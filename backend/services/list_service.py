@@ -3,9 +3,20 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from repositories.list_repository import ListRepository
-from schemas.list import ListCreate, ListUpdate, ListDuplicate, ListResponse, ShareLinkCreate, ShareLinkResponse, JoinLinkResponse
+from schemas.list import (
+    ListCreate,
+    ListUpdate,
+    ListDuplicate,
+    ListResponse,
+    ShareLinkCreate,
+    ShareLinkResponse,
+    JoinLinkResponse,
+    MemberInfo,
+    UpdateMemberRole,
+)
 from models.shopping_list import ShoppingList
 from models.list_member import ListMember, MemberRole
+from models.user import User
 
 
 class ListService:
@@ -211,3 +222,122 @@ class ListService:
             list_id=shopping_list.id,
             name=shopping_list.name,
         )
+
+    def get_list_members(self, list_id: str, user_id: str) -> list[MemberInfo]:
+        shopping_list = self.repository.get_by_id(list_id)
+
+        if not shopping_list:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="List not found",
+            )
+
+        if not self._user_has_access(shopping_list, user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this list",
+            )
+
+        members = self.repository.db.query(ListMember).filter(
+            ListMember.list_id == list_id
+        ).all()
+
+        member_infos = []
+        for member in members:
+            user = self.repository.db.query(User).filter(User.id == member.user_id).first()
+            if user:
+                member_infos.append(
+                    MemberInfo(
+                        id=member.user_id,
+                        name=user.name,
+                        avatar=None,
+                        role=member.role,
+                        created_at=member.created_at,
+                    )
+                )
+
+        return member_infos
+
+    def update_member_role(
+        self, list_id: str, member_user_id: str, role_data: UpdateMemberRole, user_id: str
+    ) -> MemberInfo:
+        shopping_list = self.repository.get_by_id(list_id)
+
+        if not shopping_list:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="List not found",
+            )
+
+        if shopping_list.owner_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the owner can change member roles",
+            )
+
+        member = self.repository.db.query(ListMember).filter(
+            ListMember.list_id == list_id,
+            ListMember.user_id == member_user_id,
+        ).first()
+
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Member not found in this list",
+            )
+
+        # Prevent changing owner's role
+        if member.role == MemberRole.owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot change the owner's role",
+            )
+
+        member.role = role_data.role
+        self.repository.db.commit()
+
+        user = self.repository.db.query(User).filter(User.id == member.user_id).first()
+        return MemberInfo(
+            id=member.user_id,
+            name=user.name if user else "Unknown",
+            avatar=None,
+            role=member.role,
+            created_at=member.created_at,
+        )
+
+    def remove_member(self, list_id: str, member_user_id: str, user_id: str) -> None:
+        shopping_list = self.repository.get_by_id(list_id)
+
+        if not shopping_list:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="List not found",
+            )
+
+        # Owner can remove anyone, members can only remove themselves
+        if user_id != member_user_id and shopping_list.owner_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You cannot remove this member",
+            )
+
+        member = self.repository.db.query(ListMember).filter(
+            ListMember.list_id == list_id,
+            ListMember.user_id == member_user_id,
+        ).first()
+
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Member not found in this list",
+            )
+
+        # Prevent removing the owner
+        if member.role == MemberRole.owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot remove the list owner",
+            )
+
+        self.repository.db.delete(member)
+        self.repository.db.commit()

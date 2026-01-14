@@ -102,6 +102,31 @@ class ListApi {
       fromJson: (data) => data as Map<String, dynamic>,
     );
   }
+
+  Future<List<Map<String, dynamic>>> getListMembers(String listId) async {
+    return _client.get<List<Map<String, dynamic>>>(
+      '/lists/$listId/members',
+      fromJson: (data) => (data as List)
+          .map((item) => item as Map<String, dynamic>)
+          .toList(),
+    );
+  }
+
+  Future<Map<String, dynamic>> updateMemberRole(
+    String listId,
+    String memberId,
+    String role,
+  ) async {
+    return _client.patch<Map<String, dynamic>>(
+      '/lists/$listId/members/$memberId',
+      data: {'role': role},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> removeMember(String listId, String memberId) async {
+    await _client.delete('/lists/$listId/members/$memberId');
+  }
 }
 
 final listApiProvider = Provider<ListApi>((ref) {

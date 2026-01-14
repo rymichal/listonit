@@ -37,6 +37,18 @@ class JoinLinkResponse(BaseModel):
     name: str
 
 
+class MemberInfo(BaseModel):
+    id: str
+    name: str
+    avatar: str | None = None
+    role: str
+    created_at: datetime
+
+
+class UpdateMemberRole(BaseModel):
+    role: str = Field(pattern=r"^(editor|viewer)$")
+
+
 class ListResponse(ListBase):
     id: str
     owner_id: str
