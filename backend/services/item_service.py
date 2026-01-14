@@ -5,6 +5,7 @@ from repositories.item_repository import ItemRepository
 from repositories.list_repository import ListRepository
 from schemas.item import ItemCreate, ItemUpdate, ItemResponse
 from models.item import Item
+from websocket_manager import manager
 
 
 class ItemService:
@@ -19,7 +20,25 @@ class ItemService:
         self._verify_list_access(list_id, user_id)
 
         item = self.repository.create(list_id, item_data, user_id)
-        return ItemResponse.model_validate(item)
+        response = ItemResponse.model_validate(item)
+
+        # Broadcast to WebSocket clients
+        import asyncio
+        try:
+            asyncio.create_task(
+                manager.broadcast(
+                    list_id,
+                    {
+                        "type": "item_added",
+                        "item": response.model_dump(),
+                        "user_id": user_id,
+                    },
+                )
+            )
+        except Exception:
+            pass  # WebSocket broadcast is not critical
+
+        return response
 
     def create_items_batch(
         self, list_id: str, names: list[str], user_id: str
@@ -70,7 +89,25 @@ class ItemService:
 
         item = self._get_item_or_404(item_id, list_id)
         toggled = self.repository.toggle_checked(item, user_id)
-        return ItemResponse.model_validate(toggled)
+        response = ItemResponse.model_validate(toggled)
+
+        # Broadcast to WebSocket clients
+        import asyncio
+        try:
+            asyncio.create_task(
+                manager.broadcast(
+                    list_id,
+                    {
+                        "type": "item_updated",
+                        "item": response.model_dump(),
+                        "user_id": user_id,
+                    },
+                )
+            )
+        except Exception:
+            pass  # WebSocket broadcast is not critical
+
+        return response
 
     def delete_item(self, list_id: str, item_id: str, user_id: str) -> None:
         # Verify list exists and user has access
