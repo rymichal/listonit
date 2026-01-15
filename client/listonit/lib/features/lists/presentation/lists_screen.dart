@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/offline_banner.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/lists_provider.dart';
 import 'list_detail_screen.dart';
@@ -85,7 +86,12 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
           ),
         ],
       ),
-      body: _buildBody(state),
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(child: _buildBody(state)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showCreateListModal,
         tooltip: 'Create new list',

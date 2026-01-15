@@ -1,5 +1,7 @@
 # Story 3.6: Typing Indicators
 
+canceled
+
 ## Description
 Show when someone is adding items to a shared list.
 

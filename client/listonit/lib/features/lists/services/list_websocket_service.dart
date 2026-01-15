@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../../../core/config/api_config.dart';
+
 typedef SyncCallback = void Function(SyncMessage message);
 
 class SyncMessage {
@@ -22,7 +24,7 @@ class SyncMessage {
   }
 }
 
-class ListSyncService {
+class ListWebSocketService {
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   final List<SyncCallback> _listeners = [];
@@ -35,7 +37,7 @@ class ListSyncService {
   int _reconnectAttempts = 0;
   static const Duration _reconnectDelay = Duration(seconds: 3);
 
-  ListSyncService({String baseUrl = 'wss://api.listonit.app'}) : _baseUrl = baseUrl;
+  ListWebSocketService({String? baseUrl}) : _baseUrl = baseUrl ?? ApiConfig.wsBaseUrl;
 
   bool get isConnected => _isConnected;
 
@@ -56,7 +58,7 @@ class ListSyncService {
 
   Future<void> _doConnect() async {
     try {
-      final uri = Uri.parse('$_baseUrl/api/v1/ws/lists/$_currentListId?token=$_token');
+      final uri = Uri.parse('$_baseUrl/ws/lists/$_currentListId?token=$_token');
       _channel = WebSocketChannel.connect(uri);
       _isConnected = true;
       _reconnectAttempts = 0;
@@ -145,5 +147,5 @@ class ListSyncService {
   }
 }
 
-// Global sync service instance
-final listSyncService = ListSyncService();
+// Global WebSocket service instance
+final listWebSocketService = ListWebSocketService();

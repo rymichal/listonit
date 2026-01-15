@@ -17,24 +17,11 @@ class ListUpdate(BaseModel):
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     icon: str | None = Field(default=None, max_length=50)
     is_archived: bool | None = None
+    sort_mode: str | None = Field(default=None, pattern=r"^(alphabetical|custom|chronological)$")
 
 
 class ListDuplicate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
-
-
-class ShareLinkCreate(BaseModel):
-    role: str = Field(default="editor", pattern=r"^(editor|viewer)$")
-
-
-class ShareLinkResponse(BaseModel):
-    link: str
-    role: str
-
-
-class JoinLinkResponse(BaseModel):
-    list_id: str
-    name: str
 
 
 class MemberInfo(BaseModel):
@@ -49,10 +36,16 @@ class UpdateMemberRole(BaseModel):
     role: str = Field(pattern=r"^(editor|viewer)$")
 
 
+class AddMember(BaseModel):
+    user_id: str
+    role: str = Field(default="editor", pattern=r"^(editor|viewer)$")
+
+
 class ListResponse(ListBase):
     id: str
     owner_id: str
     is_archived: bool
+    sort_mode: str = "chronological"
     created_at: datetime
     updated_at: datetime
 

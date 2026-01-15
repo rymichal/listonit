@@ -122,6 +122,18 @@ class ItemApi {
     );
     return response['count'] as int;
   }
+
+  Future<int> reorderItems({
+    required String listId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/lists/$listId/items/reorder',
+      data: {'items': items},
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
+    return response['count'] as int;
+  }
 }
 
 final itemApiProvider = Provider<ItemApi>((ref) {

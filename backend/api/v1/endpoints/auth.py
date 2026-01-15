@@ -7,35 +7,13 @@ from auth.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
-    hash_password,
     verify_password,
 )
 from database import get_db
 from models import User
-from schemas.auth import Token, TokenRefresh, UserRegister, UserResponse
+from schemas.auth import Token, TokenRefresh, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserRegister, db: Session = Depends(get_db)) -> User:
-    """Create a new user account."""
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
-
-    user = User(
-        email=user_data.email,
-        name=user_data.name,
-        password_hash=hash_password(user_data.password),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
 
 
 @router.post("/login", response_model=Token)
@@ -44,11 +22,11 @@ async def login(
     db: Session = Depends(get_db),
 ) -> Token:
     """Authenticate user and return access and refresh tokens."""
-    user = db.query(User).filter(User.email == form_data.username).first()
+    user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

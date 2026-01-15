@@ -2,55 +2,80 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/storage/sync_action.dart';
+import '../../../core/sync/sync_queue_service.dart';
+import '../data/item_local_data_source.dart';
 import '../data/item_repository.dart';
 import '../domain/item.dart';
+import '../domain/sort_mode.dart';
+import '../domain/item_sorting.dart';
 
 class ItemsState {
   final String listId;
   final List<Item> items;
   final bool isLoading;
   final String? error;
+  final SortMode sortMode;
+  final bool sortAscending;
 
   const ItemsState({
     required this.listId,
     this.items = const [],
     this.isLoading = false,
     this.error,
+    this.sortMode = SortMode.chronological,
+    this.sortAscending = true,
   });
 
   List<Item> get uncheckedItems => items.where((i) => !i.isChecked).toList();
   List<Item> get checkedItems => items.where((i) => i.isChecked).toList();
+
+  /// Get items sorted by the current sort mode
+  List<Item> getSortedItems() => items.sorted(sortMode, ascending: sortAscending);
 
   ItemsState copyWith({
     String? listId,
     List<Item>? items,
     bool? isLoading,
     String? error,
+    SortMode? sortMode,
+    bool? sortAscending,
   }) {
     return ItemsState(
       listId: listId ?? this.listId,
       items: items ?? this.items,
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      sortMode: sortMode ?? this.sortMode,
+      sortAscending: sortAscending ?? this.sortAscending,
     );
   }
 }
 
 class ItemsNotifier extends StateNotifier<ItemsState> {
   final ItemRepository _repository;
+  final SyncQueueService _syncQueueService;
   final Uuid _uuid = const Uuid();
 
   // For undo functionality
   Item? _lastDeletedItem;
   int? _lastDeletedIndex;
 
-  ItemsNotifier(this._repository, String listId)
+  ItemsNotifier(this._repository, this._syncQueueService, String listId)
       : super(ItemsState(listId: listId));
 
   Future<void> loadItems() async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
+      // Load from cache first (instant load)
+      final localDataSource = ItemLocalDataSource();
+      final cachedItems = await localDataSource.getItems(state.listId);
+      if (cachedItems.isNotEmpty) {
+        state = state.copyWith(items: cachedItems);
+      }
+
+      // Then fetch from server
       final items = await _repository.getItems(state.listId);
       state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
@@ -106,6 +131,20 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
       return true;
     } catch (e) {
       if (_repository.isNetworkError(e)) {
+        // Queue for sync
+        await _syncQueueService.enqueue(
+          SyncActionType.create,
+          SyncEntityType.item,
+          tempId,
+          {
+            'list_id': state.listId,
+            'name': name,
+            'quantity': quantity,
+            'unit': unit,
+            'note': note,
+          },
+        );
+
         // Keep optimistic item for offline sync later
         state = state.copyWith(
           error: 'Saved locally. Will sync when online.',
@@ -449,12 +488,96 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
       return false;
     }
   }
+
+  /// Reorder items by updating their sort indices
+  Future<bool> reorderItems(int oldIndex, int newIndex) async {
+    // Get only unchecked items (only these can be reordered)
+    final uncheckedItems = state.items.where((i) => !i.isChecked).toList();
+
+    if (oldIndex < 0 || oldIndex >= uncheckedItems.length) return false;
+    if (newIndex < 0 || newIndex > uncheckedItems.length) return false;
+
+    // Adjust newIndex if moving down (ReorderableListView behavior)
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+
+    if (oldIndex == newIndex) return true;
+
+    // Store old state for rollback
+    final oldItemsList = state.items.toList();
+
+    // Reorder locally (optimistic update)
+    final item = uncheckedItems.removeAt(oldIndex);
+    uncheckedItems.insert(newIndex, item);
+
+    // Update sort_index for all affected items
+    for (int i = 0; i < uncheckedItems.length; i++) {
+      uncheckedItems[i] = uncheckedItems[i].copyWith(sortIndex: i);
+    }
+
+    // Merge back with checked items (they stay at bottom)
+    final checkedItems = state.items.where((i) => i.isChecked).toList();
+    state = state.copyWith(items: [...uncheckedItems, ...checkedItems], error: null);
+
+    // Sync with backend
+    try {
+      await _repository.reorderItems(
+        listId: state.listId,
+        items: uncheckedItems
+            .map((i) => {'item_id': i.id, 'sort_index': i.sortIndex})
+            .toList(),
+      );
+      return true;
+    } catch (e) {
+      // Rollback on error
+      state = state.copyWith(
+        items: oldItemsList,
+        error: e is ApiException ? e.message : 'Failed to reorder items',
+      );
+      return false;
+    }
+  }
+
+  /// Apply reorder changes received from WebSocket (other users' changes)
+  void applyReorderFromServer(List<Map<String, dynamic>> reorderedData) {
+    final updatedItems = state.items.map((item) {
+      final reorderEntry = reorderedData.firstWhere(
+        (e) => e['id'] == item.id,
+        orElse: () => {},
+      );
+
+      if (reorderEntry.isNotEmpty) {
+        return item.copyWith(sortIndex: reorderEntry['sort_index'] as int);
+      }
+      return item;
+    }).toList();
+
+    state = state.copyWith(items: updatedItems);
+  }
+
+  /// Update the sort mode for this list
+  void setSortMode(SortMode mode) {
+    state = state.copyWith(sortMode: mode);
+  }
+
+  /// Update the sort direction (ascending/descending)
+  void setSortAscending(bool ascending) {
+    state = state.copyWith(sortAscending: ascending);
+  }
+
+  /// Initialize sort mode from list
+  void initializeSortMode(String sortModeString, bool ascending) {
+    final sortMode = SortMode.fromString(sortModeString);
+    state = state.copyWith(sortMode: sortMode, sortAscending: ascending);
+  }
 }
 
 final itemsProvider =
     StateNotifierProvider.family<ItemsNotifier, ItemsState, String>(
   (ref, listId) {
     final repository = ref.watch(itemRepositoryProvider);
-    return ItemsNotifier(repository, listId);
+    final syncQueueService = ref.watch(syncQueueServiceProvider);
+    return ItemsNotifier(repository, syncQueueService, listId);
   },
 );

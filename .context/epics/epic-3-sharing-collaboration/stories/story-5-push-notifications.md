@@ -1,5 +1,7 @@
 # Story 3.5: Push Notifications
 
+canceled
+
 ## Description
 Users receive notifications when shared lists change.
 

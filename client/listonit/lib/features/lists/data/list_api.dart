@@ -46,6 +46,7 @@ class ListApi {
     String? color,
     String? icon,
     bool? isArchived,
+    String? sortMode,
   }) async {
     return _client.patch<ShoppingList>(
       '/lists/$id',
@@ -54,6 +55,7 @@ class ListApi {
         if (color != null) 'color': color,
         if (icon != null) 'icon': icon,
         if (isArchived != null) 'is_archived': isArchived,
+        if (sortMode != null) 'sort_mode': sortMode,
       },
       fromJson: (data) => ShoppingList.fromJson(data as Map<String, dynamic>),
     );
@@ -73,37 +75,7 @@ class ListApi {
     );
   }
 
-  Future<String> createShareLink(String listId, {required String role}) async {
-    final response = await _client.post<Map<String, dynamic>>(
-      '/lists/$listId/link',
-      data: {'role': role},
-      fromJson: (data) => data as Map<String, dynamic>,
-    );
-    return response['link'] as String;
-  }
-
-  Future<String> regenerateShareLink(String listId) async {
-    final response = await _client.post<Map<String, dynamic>>(
-      '/lists/$listId/link/regenerate',
-      data: {},
-      fromJson: (data) => data as Map<String, dynamic>,
-    );
-    return response['link'] as String;
-  }
-
-  Future<void> revokeShareLink(String listId) async {
-    await _client.delete('/lists/$listId/link');
-  }
-
-  Future<Map<String, dynamic>> joinViaShareLink(String token) async {
-    return _client.post<Map<String, dynamic>>(
-      '/join/$token',
-      data: {},
-      fromJson: (data) => data as Map<String, dynamic>,
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getListMembers(String listId) async {
+Future<List<Map<String, dynamic>>> getListMembers(String listId) async {
     return _client.get<List<Map<String, dynamic>>>(
       '/lists/$listId/members',
       fromJson: (data) => (data as List)
@@ -126,6 +98,21 @@ class ListApi {
 
   Future<void> removeMember(String listId, String memberId) async {
     await _client.delete('/lists/$listId/members/$memberId');
+  }
+
+  Future<Map<String, dynamic>> addMember(
+    String listId,
+    String userId,
+    String role,
+  ) async {
+    return _client.post<Map<String, dynamic>>(
+      '/lists/$listId/members',
+      data: {
+        'user_id': userId,
+        'role': role,
+      },
+      fromJson: (data) => data as Map<String, dynamic>,
+    );
   }
 }
 

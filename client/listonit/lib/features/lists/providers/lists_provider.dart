@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/network/api_exception.dart';
+import '../../../core/storage/sync_action.dart';
+import '../../../core/sync/sync_queue_service.dart';
+import '../data/list_local_data_source.dart';
 import '../data/list_repository.dart';
 import '../domain/shopping_list.dart';
 
@@ -39,14 +42,23 @@ class ListsState {
 
 class ListsNotifier extends StateNotifier<ListsState> {
   final ListRepository _repository;
+  final SyncQueueService _syncQueueService;
   final Uuid _uuid = const Uuid();
 
-  ListsNotifier(this._repository) : super(const ListsState());
+  ListsNotifier(this._repository, this._syncQueueService) : super(const ListsState());
 
   Future<void> loadLists() async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
+      // Load from cache first (instant load)
+      final localDataSource = ListLocalDataSource();
+      final cachedLists = await localDataSource.getLists();
+      if (cachedLists.isNotEmpty) {
+        state = state.copyWith(lists: cachedLists);
+      }
+
+      // Then fetch from server
       final lists = await _repository.getLists();
       state = state.copyWith(lists: lists, isLoading: false);
     } catch (e) {
@@ -98,6 +110,18 @@ class ListsNotifier extends StateNotifier<ListsState> {
       return true;
     } catch (e) {
       if (_repository.isNetworkError(e)) {
+        // Queue for sync
+        await _syncQueueService.enqueue(
+          SyncActionType.create,
+          SyncEntityType.list,
+          tempId,
+          {
+            'name': name,
+            'color': color ?? '#4CAF50',
+            'icon': icon ?? 'shopping_cart',
+          },
+        );
+
         // Keep optimistic list for offline sync later
         state = state.copyWith(
           error: 'Saved locally. Will sync when online.',
@@ -266,9 +290,30 @@ class ListsNotifier extends StateNotifier<ListsState> {
       return null;
     }
   }
+
+  Future<void> updateListSortMode(String listId, String sortMode) async {
+    try {
+      final updatedList = await _repository.updateList(
+        listId,
+        sortMode: sortMode,
+      );
+
+      // Update the list in the state
+      state = state.copyWith(
+        lists: state.lists.map((l) => l.id == listId ? updatedList : l).toList(),
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        error: e is ApiException ? e.message : 'Failed to update sort mode',
+      );
+      rethrow;
+    }
+  }
 }
 
 final listsProvider = StateNotifierProvider<ListsNotifier, ListsState>((ref) {
   final repository = ref.watch(listRepositoryProvider);
-  return ListsNotifier(repository);
+  final syncQueueService = ref.watch(syncQueueServiceProvider);
+  return ListsNotifier(repository, syncQueueService);
 });

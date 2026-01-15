@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from repositories.item_repository import ItemRepository
 from repositories.list_repository import ListRepository
-from schemas.item import ItemCreate, ItemUpdate, ItemResponse
+from schemas.item import ItemCreate, ItemUpdate, ItemResponse, ItemReorder
 from models.item import Item
 from websocket_manager import manager
 
@@ -135,6 +135,33 @@ class ItemService:
         self._verify_list_access(list_id, user_id)
 
         return self.repository.batch_delete(list_id, item_ids)
+
+    def reorder_items(
+        self, list_id: str, reorder_data: ItemReorder, user_id: str
+    ) -> dict:
+        """
+        Reorder items in a list by updating their sort_index values.
+
+        Args:
+            list_id: The list ID
+            reorder_data: ItemReorder with list of items and their new sort indices
+            user_id: Current user ID (for access verification)
+
+        Returns:
+            Dict with 'success' and 'count' keys
+        """
+        # Verify list exists and user has access
+        self._verify_list_access(list_id, user_id)
+
+        # Convert ItemReorder entries to dict format for repository
+        reorder_entries = [
+            {"item_id": entry.item_id, "sort_index": entry.sort_index}
+            for entry in reorder_data.items
+        ]
+
+        count = self.repository.bulk_update_sort_indices(list_id, reorder_entries)
+
+        return {"success": True, "count": count}
 
     def _verify_list_access(self, list_id: str, user_id: str) -> None:
         shopping_list = self.list_repository.get_by_id(list_id)

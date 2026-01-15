@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Query, WebSocketDisconnect, WebSocket, status
 from sqlalchemy.orm import Session
 
-from auth.security import verify_token
+from auth.security import decode_token
 from database import get_db
 from websocket_manager import manager
 
@@ -21,7 +21,10 @@ async def websocket_endpoint(websocket: WebSocket, list_id: str, token: str = Qu
     """
     # Verify authentication
     try:
-        payload = verify_token(token)
+        payload = decode_token(token)
+        if payload is None:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
         user_id = payload.get("sub")
         if not user_id:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)

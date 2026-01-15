@@ -11,6 +11,7 @@ from schemas.item import (
     ItemBatchCheck,
     ItemBatchDelete,
     BatchOperationResponse,
+    ItemReorder,
 )
 from services.item_service import ItemService
 
@@ -139,3 +140,16 @@ def batch_delete_items(
     service = ItemService(db)
     count = service.batch_delete(list_id, batch_data.item_ids, current_user_id)
     return BatchOperationResponse(success=True, count=count)
+
+
+@router.post("/reorder", response_model=BatchOperationResponse)
+def reorder_items(
+    list_id: str,
+    reorder_data: ItemReorder,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Reorder items in a list by updating their sort indices."""
+    service = ItemService(db)
+    result = service.reorder_items(list_id, reorder_data, current_user_id)
+    return BatchOperationResponse(success=result["success"], count=result["count"])

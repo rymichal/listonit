@@ -13,12 +13,16 @@ class SelectableItemTile extends ConsumerStatefulWidget {
   final Item item;
   final String listId;
   final Color accentColor;
+  final bool showDragHandle;
+  final int? dragHandleIndex;
 
   const SelectableItemTile({
     super.key,
     required this.item,
     required this.listId,
     required this.accentColor,
+    this.showDragHandle = false,
+    this.dragHandleIndex,
   });
 
   @override
@@ -196,8 +200,9 @@ class _SelectableItemTileState extends ConsumerState<SelectableItemTile>
       onLongPress: isSelectionMode ? null : _onLongPress,
       child: Dismissible(
         key: Key(widget.item.id),
-        direction:
-            isSelectionMode ? DismissDirection.none : DismissDirection.horizontal,
+        direction: isSelectionMode || widget.showDragHandle
+            ? DismissDirection.none
+            : DismissDirection.horizontal,
         background: _buildSwipeBackground(context, isLeft: true),
         secondaryBackground: _buildSwipeBackground(context, isLeft: false),
         confirmDismiss: (direction) async {
@@ -223,9 +228,17 @@ class _SelectableItemTileState extends ConsumerState<SelectableItemTile>
               children: [
                 // Main tile
                 ListTile(
-                  leading: isSelectionMode
-                      ? _buildSelectionCheckbox(isSelected)
-                      : _buildAnimatedCheckbox(),
+                  leading: widget.showDragHandle && widget.dragHandleIndex != null
+                      ? ReorderableDragStartListener(
+                          index: widget.dragHandleIndex!,
+                          child: Icon(
+                            Icons.drag_handle,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        )
+                      : isSelectionMode
+                          ? _buildSelectionCheckbox(isSelected)
+                          : _buildAnimatedCheckbox(),
                   title: _isExpanded && !isSelectionMode
                       ? _buildNameField()
                       : GestureDetector(

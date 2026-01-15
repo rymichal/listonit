@@ -1,4 +1,3 @@
-import secrets
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -8,9 +7,6 @@ from schemas.list import (
     ListUpdate,
     ListDuplicate,
     ListResponse,
-    ShareLinkCreate,
-    ShareLinkResponse,
-    JoinLinkResponse,
     MemberInfo,
     UpdateMemberRole,
 )
@@ -116,112 +112,6 @@ class ListService:
         new_list = self.repository.duplicate(original, new_name, user_id)
 
         return ListResponse.model_validate(new_list)
-
-    def create_share_link(
-        self, list_id: str, link_data: ShareLinkCreate, user_id: str
-    ) -> ShareLinkResponse:
-        shopping_list = self.repository.get_by_id(list_id)
-
-        if not shopping_list:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="List not found",
-            )
-
-        if shopping_list.owner_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only the owner can create share links",
-            )
-
-        share_token = secrets.token_urlsafe(16)
-        shopping_list.share_token = share_token
-        shopping_list.share_token_role = link_data.role
-        shopping_list.share_token_enabled = True
-        self.repository.db.commit()
-
-        return ShareLinkResponse(
-            link=f"https://listonit.app/join/{share_token}",
-            role=link_data.role,
-        )
-
-    def regenerate_share_link(
-        self, list_id: str, user_id: str
-    ) -> ShareLinkResponse:
-        shopping_list = self.repository.get_by_id(list_id)
-
-        if not shopping_list:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="List not found",
-            )
-
-        if shopping_list.owner_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only the owner can regenerate share links",
-            )
-
-        share_token = secrets.token_urlsafe(16)
-        shopping_list.share_token = share_token
-        self.repository.db.commit()
-
-        return ShareLinkResponse(
-            link=f"https://listonit.app/join/{share_token}",
-            role=shopping_list.share_token_role,
-        )
-
-    def revoke_share_link(self, list_id: str, user_id: str) -> None:
-        shopping_list = self.repository.get_by_id(list_id)
-
-        if not shopping_list:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="List not found",
-            )
-
-        if shopping_list.owner_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only the owner can revoke share links",
-            )
-
-        shopping_list.share_token = None
-        shopping_list.share_token_enabled = False
-        self.repository.db.commit()
-
-    def join_via_share_link(self, token: str, user_id: str) -> JoinLinkResponse:
-        shopping_list = self.repository.db.query(ShoppingList).filter(
-            ShoppingList.share_token == token,
-            ShoppingList.share_token_enabled == True,
-        ).first()
-
-        if not shopping_list:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invalid or expired share link",
-            )
-
-        # Check if user is already a member
-        existing_member = self.repository.db.query(ListMember).filter(
-            ListMember.list_id == shopping_list.id,
-            ListMember.user_id == user_id,
-        ).first()
-
-        if not existing_member:
-            # Add user as a member with the share link's role
-            new_member = ListMember(
-                list_id=shopping_list.id,
-                user_id=user_id,
-                role=shopping_list.share_token_role or "editor",
-            )
-            self.repository.db.add(new_member)
-            self.repository.db.commit()
-
-        return JoinLinkResponse(
-            list_id=shopping_list.id,
-            name=shopping_list.name,
-        )
 
     def get_list_members(self, list_id: str, user_id: str) -> list[MemberInfo]:
         shopping_list = self.repository.get_by_id(list_id)
@@ -341,3 +231,58 @@ class ListService:
 
         self.repository.db.delete(member)
         self.repository.db.commit()
+
+    def add_member(
+        self, list_id: str, target_user_id: str, role: str, current_user_id: str
+    ) -> MemberInfo:
+        shopping_list = self.repository.get_by_id(list_id)
+
+        if not shopping_list:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="List not found",
+            )
+
+        # Only owner can add members
+        if shopping_list.owner_id != current_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the owner can add members",
+            )
+
+        # Check if user exists
+        target_user = self.repository.db.query(User).filter(User.id == target_user_id).first()
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        # Check if user is already a member
+        existing_member = self.repository.db.query(ListMember).filter(
+            ListMember.list_id == list_id,
+            ListMember.user_id == target_user_id,
+        ).first()
+
+        if existing_member:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already a member of this list",
+            )
+
+        # Add the new member
+        new_member = ListMember(
+            list_id=list_id,
+            user_id=target_user_id,
+            role=role,
+        )
+        self.repository.db.add(new_member)
+        self.repository.db.commit()
+
+        return MemberInfo(
+            id=target_user.id,
+            name=target_user.name,
+            avatar=None,
+            role=role,
+            created_at=new_member.created_at,
+        )

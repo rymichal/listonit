@@ -1,14 +1,13 @@
 import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/api_config.dart';
 import 'api_exception.dart';
 import 'auth_interceptor.dart';
 
-String get baseUrl =>
-    dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000/api/v1';
+String get baseUrl => ApiConfig.baseUrl;
 
 class _SimpleLogInterceptor extends Interceptor {
   @override

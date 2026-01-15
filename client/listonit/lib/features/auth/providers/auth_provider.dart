@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/auth_service.dart';
+import '../data/token_storage.dart';
 import '../domain/user.dart';
 
 enum AuthStatus {
@@ -58,37 +59,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<bool> login({
-    required String email,
+    required String username,
     required String password,
   }) async {
     state = state.copyWith(status: AuthStatus.loading, error: null);
 
     try {
-      final user = await _authService.login(email: email, password: password);
-      state = AuthState(status: AuthStatus.authenticated, user: user);
-      return true;
-    } on AuthException catch (e) {
-      state = AuthState(
-        status: AuthStatus.unauthenticated,
-        error: e.message,
-      );
-      return false;
-    }
-  }
-
-  Future<bool> register({
-    required String email,
-    required String password,
-    required String name,
-  }) async {
-    state = state.copyWith(status: AuthStatus.loading, error: null);
-
-    try {
-      final user = await _authService.register(
-        email: email,
-        password: password,
-        name: name,
-      );
+      final user = await _authService.login(username: username, password: password);
       state = AuthState(status: AuthStatus.authenticated, user: user);
       return true;
     } on AuthException catch (e) {
@@ -111,6 +88,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+
+final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final authService = ref.watch(authServiceProvider);

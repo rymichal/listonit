@@ -3,14 +3,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_exception.dart';
 import '../domain/item.dart';
 import 'item_api.dart';
+import 'item_local_data_source.dart';
 
 class ItemRepository {
   final ItemApi _api;
+  final ItemLocalDataSource _localDataSource;
 
-  ItemRepository(this._api);
+  ItemRepository(this._api, this._localDataSource);
 
   Future<List<Item>> getItems(String listId) async {
-    return _api.getItems(listId);
+    try {
+      final items = await _api.getItems(listId);
+      // Cache to local storage
+      await _localDataSource.saveItems(items);
+      return items;
+    } catch (e) {
+      // On network error, return cached data
+      if (isNetworkError(e)) {
+        return _localDataSource.getItems(listId);
+      }
+      rethrow;
+    }
   }
 
   Future<Item> createItem({
@@ -20,20 +33,26 @@ class ItemRepository {
     String? unit,
     String? note,
   }) async {
-    return _api.createItem(
+    final item = await _api.createItem(
       listId: listId,
       name: name,
       quantity: quantity,
       unit: unit,
       note: note,
     );
+    // Cache to local storage
+    await _localDataSource.saveItem(item);
+    return item;
   }
 
   Future<List<Item>> createItemsBatch({
     required String listId,
     required List<String> names,
   }) async {
-    return _api.createItemsBatch(listId: listId, names: names);
+    final items = await _api.createItemsBatch(listId: listId, names: names);
+    // Cache to local storage
+    await _localDataSource.saveItems(items);
+    return items;
   }
 
   Future<Item> updateItem({
@@ -46,7 +65,7 @@ class ItemRepository {
     bool? isChecked,
     int? sortIndex,
   }) async {
-    return _api.updateItem(
+    final item = await _api.updateItem(
       listId: listId,
       itemId: itemId,
       name: name,
@@ -56,13 +75,19 @@ class ItemRepository {
       isChecked: isChecked,
       sortIndex: sortIndex,
     );
+    // Cache to local storage
+    await _localDataSource.saveItem(item);
+    return item;
   }
 
   Future<Item> toggleItem({
     required String listId,
     required String itemId,
   }) async {
-    return _api.toggleItem(listId: listId, itemId: itemId);
+    final item = await _api.toggleItem(listId: listId, itemId: itemId);
+    // Cache to local storage
+    await _localDataSource.saveItem(item);
+    return item;
   }
 
   Future<void> deleteItem({
@@ -70,6 +95,8 @@ class ItemRepository {
     required String itemId,
   }) async {
     await _api.deleteItem(listId: listId, itemId: itemId);
+    // Remove from local storage
+    await _localDataSource.deleteItem(itemId);
   }
 
   Future<void> clearCheckedItems(String listId) async {
@@ -95,6 +122,13 @@ class ItemRepository {
     return _api.batchDeleteItems(listId: listId, itemIds: itemIds);
   }
 
+  Future<int> reorderItems({
+    required String listId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    return _api.reorderItems(listId: listId, items: items);
+  }
+
   bool isNetworkError(Object error) {
     return error is NetworkException;
   }
@@ -102,5 +136,6 @@ class ItemRepository {
 
 final itemRepositoryProvider = Provider<ItemRepository>((ref) {
   final api = ref.watch(itemApiProvider);
-  return ItemRepository(api);
+  final localDataSource = ref.watch(itemLocalDataSourceProvider);
+  return ItemRepository(api, localDataSource);
 });

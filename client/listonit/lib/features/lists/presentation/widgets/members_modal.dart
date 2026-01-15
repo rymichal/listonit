@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/list_member.dart';
 import '../../providers/members_provider.dart';
+import './share_link_modal.dart';
 
 class MembersModal extends ConsumerStatefulWidget {
   final String listId;
@@ -47,9 +48,28 @@ class _MembersModalState extends ConsumerState<MembersModal> {
                   'Members',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                Row(
+                  children: [
+                    if (widget.currentUserId == widget.listOwnerId)
+                      IconButton(
+                        icon: const Icon(Icons.person_add),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (context) => ShareLinkModal(
+                              listId: widget.listId,
+                              listName: 'List',
+                            ),
+                          );
+                        },
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
                 ),
               ],
             ),

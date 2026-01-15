@@ -15,29 +15,16 @@ class AuthService {
         _tokenStorage = tokenStorage ?? TokenStorage();
 
   Future<User> login({
-    required String email,
+    required String username,
     required String password,
   }) async {
     try {
-      final tokens = await _api.login(email: email, password: password);
+      final tokens = await _api.login(username: username, password: password);
       await _tokenStorage.saveTokens(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       );
       return await _api.getMe(tokens.accessToken);
-    } on DioException catch (e) {
-      throw _mapDioException(e);
-    }
-  }
-
-  Future<User> register({
-    required String email,
-    required String password,
-    required String name,
-  }) async {
-    try {
-      await _api.register(email: email, password: password, name: name);
-      return await login(email: email, password: password);
     } on DioException catch (e) {
       throw _mapDioException(e);
     }
@@ -94,7 +81,7 @@ class AuthService {
 
   AuthException _mapDioException(DioException e) {
     if (e.response?.statusCode == 401) {
-      return const AuthException('Invalid email or password');
+      return const AuthException('Invalid username or password');
     }
     if (e.response?.statusCode == 400) {
       final detail = e.response?.data['detail'];

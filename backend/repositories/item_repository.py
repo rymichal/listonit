@@ -128,3 +128,33 @@ class ItemRepository:
         )
         self.db.commit()
         return count
+
+    def bulk_update_sort_indices(
+        self, list_id: str, reorder_data: list[dict]
+    ) -> int:
+        """
+        Bulk update sort_index for multiple items.
+
+        Args:
+            list_id: The list ID
+            reorder_data: List of dicts with 'item_id' and 'sort_index'
+
+        Returns:
+            Number of items updated
+        """
+        updated_count = 0
+        now = datetime.utcnow()
+
+        for entry in reorder_data:
+            item = (
+                self.db.query(Item)
+                .filter(Item.id == entry["item_id"], Item.list_id == list_id)
+                .first()
+            )
+            if item:
+                item.sort_index = entry["sort_index"]
+                item.updated_at = now
+                updated_count += 1
+
+        self.db.commit()
+        return updated_count

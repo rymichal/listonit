@@ -8,11 +8,9 @@ from schemas.list import (
     ListUpdate,
     ListDuplicate,
     ListResponse,
-    ShareLinkCreate,
-    ShareLinkResponse,
-    JoinLinkResponse,
     MemberInfo,
     UpdateMemberRole,
+    AddMember,
 )
 from services.list_service import ListService
 
@@ -86,49 +84,16 @@ def duplicate_list(
     return service.duplicate_list(list_id, duplicate_data, current_user_id)
 
 
-@router.post("/{list_id}/link", response_model=ShareLinkResponse)
-def create_share_link(
+@router.post("/{list_id}/members", response_model=MemberInfo, status_code=status.HTTP_201_CREATED)
+def add_list_member(
     list_id: str,
-    link_data: ShareLinkCreate,
+    member_data: AddMember,
     db: Session = Depends(get_db),
     current_user_id: str = Depends(get_current_user_id),
 ):
-    """Create a shareable link for a list. Only the owner can create links."""
+    """Add a member to a list. Only the owner can add members."""
     service = ListService(db)
-    return service.create_share_link(list_id, link_data, current_user_id)
-
-
-@router.post("/{list_id}/link/regenerate", response_model=ShareLinkResponse)
-def regenerate_share_link(
-    list_id: str,
-    db: Session = Depends(get_db),
-    current_user_id: str = Depends(get_current_user_id),
-):
-    """Regenerate a share link token for a list. Only the owner can regenerate."""
-    service = ListService(db)
-    return service.regenerate_share_link(list_id, current_user_id)
-
-
-@router.delete("/{list_id}/link", status_code=status.HTTP_204_NO_CONTENT)
-def revoke_share_link(
-    list_id: str,
-    db: Session = Depends(get_db),
-    current_user_id: str = Depends(get_current_user_id),
-):
-    """Revoke a share link for a list. Only the owner can revoke."""
-    service = ListService(db)
-    service.revoke_share_link(list_id, current_user_id)
-
-
-@router.post("/join/{token}", response_model=JoinLinkResponse)
-def join_via_share_link(
-    token: str,
-    db: Session = Depends(get_db),
-    current_user_id: str = Depends(get_current_user_id),
-):
-    """Join a list using a share link token. Adds the user as a member of the list."""
-    service = ListService(db)
-    return service.join_via_share_link(token, current_user_id)
+    return service.add_member(list_id, member_data.user_id, member_data.role, current_user_id)
 
 
 @router.get("/{list_id}/members", response_model=list[MemberInfo])

@@ -1,20 +1,12 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
-
-
-class UserRegister(BaseModel):
-    """Schema for user registration."""
-
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
-    name: str = Field(min_length=1, max_length=100)
+from pydantic import BaseModel, Field
 
 
 class UserLogin(BaseModel):
     """Schema for user login."""
 
-    email: EmailStr
+    username: str
     password: str
 
 
@@ -36,7 +28,7 @@ class UserResponse(BaseModel):
     """Schema for user data in responses."""
 
     id: str
-    email: str
+    username: str
     name: str
     is_active: bool
     is_admin: bool

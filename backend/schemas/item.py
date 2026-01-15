@@ -53,3 +53,12 @@ class ItemBatchDelete(BaseModel):
 class BatchOperationResponse(BaseModel):
     success: bool
     count: int
+
+
+class ItemReorderEntry(BaseModel):
+    item_id: str
+    sort_index: int
+
+
+class ItemReorder(BaseModel):
+    items: list[ItemReorderEntry] = Field(..., min_length=1)

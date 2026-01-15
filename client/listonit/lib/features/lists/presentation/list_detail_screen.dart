@@ -3,15 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/icons.dart';
+import '../../items/domain/item.dart';
+import '../../items/domain/sort_mode.dart';
 import '../../items/presentation/widgets/add_item_form.dart';
+import '../../items/presentation/widgets/checked_items_section.dart';
 import '../../items/presentation/widgets/selectable_item_tile.dart';
 import '../../items/providers/item_selection_provider.dart';
 import '../../items/providers/items_provider.dart';
+import '../../items/providers/sort_preferences.dart';
 import '../domain/shopping_list.dart';
 import '../providers/lists_provider.dart';
+import '../providers/sync_provider.dart';
+import '../services/list_websocket_service.dart';
 import 'widgets/edit_list_modal.dart';
 import 'widgets/share_link_modal.dart';
 import 'widgets/members_modal.dart';
+import 'widgets/sync_status_indicator.dart';
 import '../../auth/providers/auth_provider.dart';
 
 class ListDetailScreen extends ConsumerStatefulWidget {
@@ -30,10 +37,87 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Load items when screen opens
+    // Load items and connect sync when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(itemsProvider(widget.list.id).notifier).loadItems();
+      final itemsNotifier = ref.read(itemsProvider(widget.list.id).notifier);
+      itemsNotifier.loadItems();
+
+      // Initialize sort mode from list
+      itemsNotifier.initializeSortMode(
+        widget.list.sortMode,
+        true, // Will be overridden by saved preference if available
+      );
+
+      // Load sort direction preference
+      _loadSortPreference();
+      _connectSync();
     });
+  }
+
+  Future<void> _loadSortPreference() async {
+    try {
+      final sortPrefs = await ref.read(sortPreferencesProvider.future);
+      final ascending = sortPrefs.getSortAscending(widget.list.id);
+      if (mounted) {
+        ref.read(itemsProvider(widget.list.id).notifier).setSortAscending(ascending);
+      }
+    } catch (e) {
+      debugPrint('Failed to load sort preference: $e');
+    }
+  }
+
+  Future<void> _connectSync() async {
+    final authState = ref.read(authProvider);
+    if (authState.isAuthenticated) {
+      // Get token from secure storage
+      try {
+        final tokenStorage = ref.read(tokenStorageProvider);
+        final token = await tokenStorage.getAccessToken();
+        if (token != null && mounted) {
+          await ref.read(syncProvider.notifier).connectToList(
+                widget.list.id,
+                token,
+              );
+          // Setup listener for reorder events
+          _setupSyncListeners();
+        }
+      } catch (e) {
+        debugPrint('Failed to get token for sync: $e');
+      }
+    }
+  }
+
+  void _setupSyncListeners() {
+    listWebSocketService.addListener(_handleSyncMessage);
+  }
+
+  void _handleSyncMessage(SyncMessage message) {
+    if (message.type == 'items_reordered') {
+      final itemsNotifier = ref.read(itemsProvider(widget.list.id).notifier);
+      final items = message.data['items'] as List?;
+      if (items != null) {
+        final reorderedData = items
+            .map((item) => {
+              'id': item['id'] as String,
+              'sort_index': item['sort_index'] as int,
+            })
+            .toList();
+        itemsNotifier.applyReorderFromServer(reorderedData);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    try {
+      if (mounted) {
+        ref.read(syncProvider.notifier).disconnect();
+        listWebSocketService.removeListener(_handleSyncMessage);
+      }
+    } catch (_) {
+      // Safely ignore errors during dispose
+    }
+    super.dispose();
   }
 
   @override
@@ -58,6 +142,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
             : _buildNormalAppBar(context, listColor, listIcon),
         body: Column(
           children: [
+            const SyncStatusIndicator(),
             if (!isSelectionMode)
               AddItemForm(
                 listId: widget.list.id,
@@ -246,35 +331,90 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
       return _buildEmptyState(context, listColor);
     }
 
-    final uncheckedItems = itemsState.uncheckedItems;
-    final checkedItems = itemsState.checkedItems;
+    final sortedItems = itemsState.getSortedItems();
+    final uncheckedItems = sortedItems.where((i) => !i.isChecked).toList();
+    final checkedItems = sortedItems.where((i) => i.isChecked).toList();
 
+    final isCustomSort = itemsState.sortMode == SortMode.custom;
+    final selectionState = ref.watch(itemSelectionProvider);
+    final isSelectionMode = selectionState.isSelectionMode &&
+        selectionState.listId == widget.list.id;
+
+    // Use ReorderableListView for custom sort mode (and not in selection mode)
+    if (isCustomSort && !isSelectionMode) {
+      return _buildReorderableContent(context, uncheckedItems, checkedItems, listColor);
+    }
+
+    // Use regular ListView for other modes
+    return _buildRegularContent(context, uncheckedItems, checkedItems, listColor);
+  }
+
+  Widget _buildReorderableContent(
+    BuildContext context,
+    List<Item> uncheckedItems,
+    List<Item> checkedItems,
+    Color listColor,
+  ) {
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.zero,
       children: [
-        ...uncheckedItems.map((item) => SelectableItemTile(
-              key: Key(item.id),
+        ReorderableListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          buildDefaultDragHandles: false,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: uncheckedItems.length,
+          onReorder: (oldIndex, newIndex) {
+            ref.read(itemsProvider(widget.list.id).notifier).reorderItems(oldIndex, newIndex);
+          },
+          itemBuilder: (context, index) {
+            final item = uncheckedItems[index];
+            return SelectableItemTile(
+              key: ValueKey(item.id),
               item: item,
               listId: widget.list.id,
               accentColor: listColor,
-            )),
-        if (checkedItems.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Completed (${checkedItems.length})',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              showDragHandle: true,
+              dragHandleIndex: index,
+            );
+          },
+        ),
+        CheckedItemsSection(
+          listId: widget.list.id,
+          checkedItems: checkedItems,
+          accentColor: listColor,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRegularContent(
+    BuildContext context,
+    List<Item> uncheckedItems,
+    List<Item> checkedItems,
+    Color listColor,
+  ) {
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: uncheckedItems
+                .map((item) => SelectableItemTile(
+                      key: Key(item.id),
+                      item: item,
+                      listId: widget.list.id,
+                      accentColor: listColor,
+                    ))
+                .toList(),
           ),
-          const SizedBox(height: 8),
-          ...checkedItems.map((item) => SelectableItemTile(
-                key: Key(item.id),
-                item: item,
-                listId: widget.list.id,
-                accentColor: listColor,
-              )),
-        ],
-        const SizedBox(height: 16),
+        ),
+        CheckedItemsSection(
+          listId: widget.list.id,
+          checkedItems: checkedItems,
+          accentColor: listColor,
+        ),
       ],
     );
   }
@@ -348,6 +488,14 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
               onTap: () {
                 Navigator.pop(context);
                 _showMembersModal(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.sort),
+              title: const Text('Sort items'),
+              onTap: () {
+                Navigator.pop(context);
+                _showSortMenu(context);
               },
             ),
             ListTile(
@@ -425,6 +573,114 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
           listOwnerId: widget.list.ownerId,
         ),
       );
+    }
+  }
+
+  void _showSortMenu(BuildContext context) {
+    final itemsState = ref.read(itemsProvider(widget.list.id));
+    final currentSortMode = itemsState.sortMode;
+    final currentAscending = itemsState.sortAscending;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Sort items',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.sort_by_alpha),
+              title: const Text('Alphabetical (A-Z)'),
+              trailing: currentSortMode == SortMode.alphabetical && currentAscending
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                _updateSort(SortMode.alphabetical, true);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.sort_by_alpha),
+              title: const Text('Alphabetical (Z-A)'),
+              trailing: currentSortMode == SortMode.alphabetical && !currentAscending
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                _updateSort(SortMode.alphabetical, false);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.access_time),
+              title: const Text('Newest First'),
+              trailing: currentSortMode == SortMode.chronological && currentAscending
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                _updateSort(SortMode.chronological, true);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.drag_handle),
+              title: const Text('Custom Order'),
+              subtitle: const Text('Drag to reorder'),
+              trailing: currentSortMode == SortMode.custom
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                _updateSort(SortMode.custom, true);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateSort(SortMode sortMode, bool ascending) async {
+    final listId = widget.list.id;
+
+    // Update items provider sort mode
+    ref.read(itemsProvider(listId).notifier).setSortMode(sortMode);
+    ref.read(itemsProvider(listId).notifier).setSortAscending(ascending);
+
+    // Save sort direction preference locally
+    try {
+      final sortPrefs = await ref.read(sortPreferencesProvider.future);
+      await sortPrefs.setSortAscending(listId, ascending);
+    } catch (e) {
+      debugPrint('Failed to save sort preference: $e');
+    }
+
+    // Update list sort mode on backend if it changed
+    if (widget.list.sortMode != sortMode.toString()) {
+      try {
+        await ref.read(listsProvider.notifier).updateListSortMode(
+          listId,
+          sortMode.toString(),
+        );
+      } catch (e) {
+        debugPrint('Failed to update sort mode on backend: $e');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update sort: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 

@@ -7,6 +7,7 @@ class ShoppingList extends Equatable {
   final String color;
   final String icon;
   final bool isArchived;
+  final String sortMode;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isLocal;
@@ -18,6 +19,7 @@ class ShoppingList extends Equatable {
     required this.color,
     required this.icon,
     required this.isArchived,
+    this.sortMode = 'chronological',
     required this.createdAt,
     required this.updatedAt,
     this.isLocal = false,
@@ -31,6 +33,7 @@ class ShoppingList extends Equatable {
       color: json['color'] as String,
       icon: json['icon'] as String,
       isArchived: json['is_archived'] as bool,
+      sortMode: json['sort_mode'] as String? ?? 'chronological',
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
@@ -44,6 +47,7 @@ class ShoppingList extends Equatable {
       'color': color,
       'icon': icon,
       'is_archived': isArchived,
+      'sort_mode': sortMode,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -56,6 +60,7 @@ class ShoppingList extends Equatable {
     String? color,
     String? icon,
     bool? isArchived,
+    String? sortMode,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isLocal,
@@ -67,6 +72,7 @@ class ShoppingList extends Equatable {
       color: color ?? this.color,
       icon: icon ?? this.icon,
       isArchived: isArchived ?? this.isArchived,
+      sortMode: sortMode ?? this.sortMode,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isLocal: isLocal ?? this.isLocal,
@@ -81,6 +87,7 @@ class ShoppingList extends Equatable {
         color,
         icon,
         isArchived,
+        sortMode,
         createdAt,
         updatedAt,
         isLocal,

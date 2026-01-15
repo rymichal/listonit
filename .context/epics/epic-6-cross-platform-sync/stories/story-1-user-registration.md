@@ -1,121 +1,105 @@
 # Story 6.1: User Registration
 
 ## Description
-Users can create accounts.
+Admins can create user accounts directly on the database server.
 
 ## Acceptance Criteria
-- [ ] Email + password registration
-- [ ] Password requirements: 8+ chars, mixed case, number
-- [ ] Email verification required
-- [ ] Welcome email with tips
-- [ ] Import local data after signup
+- [ ] Database schema supports user accounts (username, password_hash, name)
+- [ ] Update User model: rename email field to username
+- [ ] Admin script to create users directly in database
+- [ ] Password hashing utility for script
+- [ ] No signup API endpoint needed
 
 ## Technical Implementation
 
-### FastAPI Endpoint
+### Database Schema
+
+User model with username, password_hash, and name fields. **NOTE:** The existing User model needs to be updated to change the `email` field to `username` (as the login mechanism uses username instead of email).
+
+### Admin User Creation Script
 
 ```python
-@router.post("/api/v1/auth/register")
-async def register(
-    data: RegisterRequest,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    # Validate email format
-    if not is_valid_email(data.email):
-        raise HTTPException(400, "Invalid email format")
+#!/usr/bin/env python3
+"""
+Script to create users directly in the database.
+Usage: python create_user.py <username> <password> <name>
+"""
 
-    # Check if email exists
-    if db.query(User).filter(User.email == data.email).first():
-        raise HTTPException(400, "Email already registered")
+import argparse
+import sys
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from backend.models.shopping_list import Base, User
+from backend.services.password import hash_password
 
-    # Validate password
-    if not is_strong_password(data.password):
-        raise HTTPException(400, "Password must be 8+ chars with mixed case and numbers")
+def create_user(username: str, password: str, name: str, database_url: str):
+    engine = create_engine(database_url)
+    Session = sessionmaker(bind=engine)
+    session = Session()
 
-    # Create user
-    user = User(
-        email=data.email,
-        password_hash=hash_password(data.password),
-        name=data.name or data.email.split('@')[0]
-    )
-    db.add(user)
-    db.commit()
+    try:
+        # Check if user exists
+        existing = session.query(User).filter(User.username == username).first()
+        if existing:
+            print(f"Error: User with username {username} already exists")
+            return False
 
-    # Send verification email
-    token = create_email_token(user.id, expires_in=24*60)
-    background_tasks.add_task(
-        send_verification_email, user.email, token
-    )
+        # Create user
+        user = User(
+            username=username,
+            password_hash=hash_password(password),
+            name=name
+        )
+        session.add(user)
+        session.commit()
+        print(f"User created successfully: {username}")
+        return True
+    except Exception as e:
+        session.rollback()
+        print(f"Error creating user: {e}")
+        return False
+    finally:
+        session.close()
 
-    return {
-        "user_id": str(user.id),
-        "email": user.email,
-        "message": "Verification email sent"
-    }
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Create a user in the database")
+    parser.add_argument("username", help="Username")
+    parser.add_argument("password", help="User password")
+    parser.add_argument("name", help="User full name")
+    parser.add_argument("--database-url", default="sqlite:///./test.db",
+                       help="Database URL (default: sqlite:///./test.db)")
 
-@router.post("/api/v1/auth/verify-email")
-async def verify_email(
-    token: str,
-    db: Session = Depends(get_db)
-):
-    user_id = verify_email_token(token)
-    if not user_id:
-        raise HTTPException(400, "Invalid or expired token")
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(404, "User not found")
-
-    user.email_verified = True
-    db.commit()
-
-    return {"success": True}
+    args = parser.parse_args()
+    success = create_user(args.username, args.password, args.name, args.database_url)
+    sys.exit(0 if success else 1)
 ```
 
-### Flutter Implementation
+### Password Hashing Utility
 
-```dart
-class AuthService {
-  final ApiClient _apiClient;
+Password hashing should be implemented in `backend/services/password.py`:
 
-  Future<AuthResponse> register({
-    required String email,
-    required String password,
-    required String name,
-  }) async {
-    try {
-      final response = await _apiClient.post(
-        '/api/v1/auth/register',
-        data: {
-          'email': email,
-          'password': password,
-          'name': name,
-        },
-      );
+```python
+import hashlib
+import secrets
 
-      return AuthResponse.fromJson(response.data);
-    } catch (e) {
-      throw AuthException(e.toString());
-    }
-  }
+def hash_password(password: str) -> str:
+    """Hash password with salt using PBKDF2"""
+    salt = secrets.token_hex(32)
+    pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+    return f"{salt}${pwd_hash.hex()}"
 
-  Future<bool> verifyEmail(String token) async {
-    try {
-      await _apiClient.post(
-        '/api/v1/auth/verify-email',
-        data: {'token': token},
-      );
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-}
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify password against hash"""
+    try:
+        salt, pwd_hash = password_hash.split('$')
+        new_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+        return new_hash.hex() == pwd_hash
+    except (ValueError, AttributeError):
+        return False
 ```
 
 ## Dependencies
 - None (foundational)
 
 ## Estimated Effort
-5 story points
+2 story points
