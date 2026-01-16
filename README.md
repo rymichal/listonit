@@ -45,52 +45,122 @@ listonit/
 
 ### Backend Setup
 
-1. **Start PostgreSQL and Redis with Docker Compose**
+You can run the backend either locally or using Docker. Docker is recommended for easier setup and production-like environment.
+
+#### Option A: Docker Setup (Recommended)
+
+1. **Build and start all services with Docker Compose**
 
    ```bash
    cd listonit
-   docker-compose up -d
+   docker-compose up --build
    ```
 
    This starts:
    - PostgreSQL on port 5433 (credentials: `listonit` / `listonit_dev`)
    - Redis on port 6379
+   - Backend API on port 8000
 
-2. **Set up Python environment**
+   The backend will automatically run database migrations on startup.
+
+2. **Verify the backend is running**
+
+   - API health check: `http://localhost:8000/`
+   - API documentation: `http://localhost:8000/docs`
+
+3. **Seed the database (optional)**
+
+   ```bash
+   docker-compose exec backend python scripts/seed.py
+   ```
+
+   This creates test users (ryan/hanna with password: asdfasdf)
+
+4. **View logs**
+
+   ```bash
+   # All services
+   docker-compose logs -f
+
+   # Backend only
+   docker-compose logs -f backend
+   ```
+
+5. **Stop services**
+
+   ```bash
+   # Stop but keep containers
+   docker-compose stop
+
+   # Stop and remove containers
+   docker-compose down
+
+   # Stop, remove containers, and delete volumes (CAUTION: deletes all data)
+   docker-compose down -v
+   ```
+
+#### Option B: Local Development Setup
+
+1. **Start dependencies**
+
+   ```bash
+   docker-compose up -d postgres redis
+   ```
+
+2. **Setup Python environment**
 
    ```bash
    cd backend
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-
-   Using `uv` (recommended):
-   ```bash
    uv pip install -e .
    ```
 
-   Or using `pip`:
-   ```bash
-   pip install -e .
+3. **Configure for local**
+
+   Create `.env`:
+   ```env
+   DATABASE_URL=postgresql://listonit:listonit_dev@localhost:5433/listonit
+   DEBUG=true
    ```
 
-4. **Configure environment variables**
-
-   Copy `.env.example` to `.env` and update as needed:
-   ```bash
-   cp .env.example .env
-   ```
-
-5. **Run the backend server**
+4. **Run migrations**
 
    ```bash
-   python main.py
+   alembic upgrade head
    ```
 
-   The API will be available at `http://localhost:8000`
-   API documentation: `http://localhost:8000/docs`
+5. **Start server**
+
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+### Database Migrations
+
+```bash
+# Docker
+docker-compose exec backend alembic upgrade head
+docker-compose exec backend alembic revision --autogenerate -m "Description"
+
+# Local
+alembic upgrade head
+alembic revision --autogenerate -m "Description"
+```
+
+### Rebuilding Containers
+
+```bash
+# After code/dependency changes
+docker-compose up --build backend
+
+# Force rebuild (no cache)
+docker-compose build --no-cache backend
+```
+
+### Cloud Run Deployment
+
+For production deployment to GCP Cloud Run with Cloud SQL, see [backend/DEPLOYMENT.md](backend/DEPLOYMENT.md) for detailed instructions.
 
 ### Client Setup
 

@@ -1,0 +1,34 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Environment files (use docker-compose env instead)
+.env
+.env.local
+
+# Testing
+.pytest_cache/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Scripts (run manually via docker exec)
+scripts/seed.py
+scripts/create_user.py
+
+# Keep: alembic/, alembic.ini, entrypoint.sh

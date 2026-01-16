@@ -15,8 +15,17 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create database tables on startup
-    Base.metadata.create_all(bind=engine)
+    # Database migrations handled by Alembic
+    # Run via: alembic upgrade head (or automatically via entrypoint.sh in Docker)
+    # Verify database connectivity on startup
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("✓ Database connection successful")
+    except Exception as e:
+        print(f"✗ Database connection failed: {e}")
+        raise
     yield
 
 
