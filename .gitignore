@@ -42,3 +42,16 @@ pubspec.lock
 .coverage
 htmlcov/
 .pytest_cache/
+
+# ===========================================
+# Deployment - Secrets and Generated Data
+# ===========================================
+deploy/**/data/
+deploy/**/backups/
+deploy/**/logs/
+deploy/**/.env
+deploy/**/cloudflared/credentials.json
+deploy/**/terraform/*.tfstate*
+deploy/**/terraform/.terraform/
+deploy/**/terraform/.terraform.lock.hcl
+deploy/**/terraform/terraform.tfvars

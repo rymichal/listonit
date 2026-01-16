@@ -4,31 +4,14 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: listonit-postgres
-    environment:
-      POSTGRES_USER: listonit
-      POSTGRES_PASSWORD: listonit_dev
-      POSTGRES_DB: listonit
+    env_file:
+      - ./backend/.env
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U listonit"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - listonit-network
-
-  redis:
-    image: redis:7-alpine
-    container_name: listonit-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -43,19 +26,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://listonit:listonit_dev@postgres:5432/listonit
-      APP_NAME: Listonit API
-      DEBUG: ${DEBUG:-false}
-      SQL_ECHO: ${SQL_ECHO:-false}
-      CORS_ORIGINS: '["http://localhost:3000","http://localhost:8080","http://localhost:8000"]'
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-change-in-production}
-      JWT_ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 30
-      REFRESH_TOKEN_EXPIRE_DAYS: 7
-      MOCK_USER_ID: 00000000-0000-0000-0000-000000000001
+    env_file:
+      - ./backend/.env
     ports:
       - "8000:8000"
     volumes:
@@ -77,4 +49,3 @@ networks:
 
 volumes:
   postgres_data:
-  redis_data:
