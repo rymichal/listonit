@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -6,6 +7,16 @@ from repositories.list_repository import ListRepository
 from schemas.item import ItemCreate, ItemUpdate, ItemResponse, ItemReorder
 from models.item import Item
 from websocket_manager import manager
+
+
+def _broadcast(list_id: str, message: dict):
+    """Schedule a WebSocket broadcast on the running event loop."""
+    try:
+        loop = asyncio.get_running_loop()
+        print(f"[ItemService] Scheduling broadcast for list {list_id}, type: {message.get('type')}")
+        loop.create_task(manager.broadcast(list_id, message))
+    except RuntimeError as e:
+        print(f"[ItemService] No running event loop, skipping broadcast: {e}")
 
 
 class ItemService:
@@ -23,20 +34,11 @@ class ItemService:
         response = ItemResponse.model_validate(item)
 
         # Broadcast to WebSocket clients
-        import asyncio
-        try:
-            asyncio.create_task(
-                manager.broadcast(
-                    list_id,
-                    {
-                        "type": "item_added",
-                        "item": response.model_dump(),
-                        "user_id": user_id,
-                    },
-                )
-            )
-        except Exception:
-            pass  # WebSocket broadcast is not critical
+        _broadcast(list_id, {
+            "type": "item_added",
+            "item": response.model_dump(mode="json"),
+            "user_id": user_id,
+        })
 
         return response
 
@@ -58,21 +60,12 @@ class ItemService:
         responses = [ItemResponse.model_validate(item) for item in items]
 
         # Broadcast each item creation
-        import asyncio
-        try:
-            for response in responses:
-                asyncio.create_task(
-                    manager.broadcast(
-                        list_id,
-                        {
-                            "type": "item_added",
-                            "item": response.model_dump(),
-                            "user_id": user_id,
-                        },
-                    )
-                )
-        except Exception:
-            pass  # WebSocket broadcast is not critical
+        for response in responses:
+            _broadcast(list_id, {
+                "type": "item_added",
+                "item": response.model_dump(mode="json"),
+                "user_id": user_id,
+            })
 
         return responses
 
@@ -101,20 +94,11 @@ class ItemService:
         response = ItemResponse.model_validate(updated)
 
         # Broadcast to WebSocket clients
-        import asyncio
-        try:
-            asyncio.create_task(
-                manager.broadcast(
-                    list_id,
-                    {
-                        "type": "item_updated",
-                        "item": response.model_dump(),
-                        "user_id": user_id,
-                    },
-                )
-            )
-        except Exception:
-            pass  # WebSocket broadcast is not critical
+        _broadcast(list_id, {
+            "type": "item_updated",
+            "item": response.model_dump(mode="json"),
+            "user_id": user_id,
+        })
 
         return response
 
@@ -129,20 +113,11 @@ class ItemService:
         response = ItemResponse.model_validate(toggled)
 
         # Broadcast to WebSocket clients
-        import asyncio
-        try:
-            asyncio.create_task(
-                manager.broadcast(
-                    list_id,
-                    {
-                        "type": "item_updated",
-                        "item": response.model_dump(),
-                        "user_id": user_id,
-                    },
-                )
-            )
-        except Exception:
-            pass  # WebSocket broadcast is not critical
+        _broadcast(list_id, {
+            "type": "item_updated",
+            "item": response.model_dump(mode="json"),
+            "user_id": user_id,
+        })
 
         return response
 
@@ -154,20 +129,11 @@ class ItemService:
         self.repository.delete(item)
 
         # Broadcast to WebSocket clients
-        import asyncio
-        try:
-            asyncio.create_task(
-                manager.broadcast(
-                    list_id,
-                    {
-                        "type": "item_deleted",
-                        "item_id": item_id,
-                        "user_id": user_id,
-                    },
-                )
-            )
-        except Exception:
-            pass  # WebSocket broadcast is not critical
+        _broadcast(list_id, {
+            "type": "item_deleted",
+            "item_id": item_id,
+            "user_id": user_id,
+        })
 
     def clear_checked(self, list_id: str, user_id: str) -> int:
         # Verify list exists and user has access
@@ -184,23 +150,14 @@ class ItemService:
         count = self.repository.batch_check(list_id, item_ids, checked, user_id)
 
         # Broadcast update for each item
-        import asyncio
-        try:
-            for item_id in item_ids:
-                item = self.repository.get_by_id(item_id)
-                if item:
-                    asyncio.create_task(
-                        manager.broadcast(
-                            list_id,
-                            {
-                                "type": "item_updated",
-                                "item": ItemResponse.model_validate(item).model_dump(),
-                                "user_id": user_id,
-                            },
-                        )
-                    )
-        except Exception:
-            pass  # WebSocket broadcast is not critical
+        for item_id in item_ids:
+            item = self.repository.get_by_id(item_id)
+            if item:
+                _broadcast(list_id, {
+                    "type": "item_updated",
+                    "item": ItemResponse.model_validate(item).model_dump(mode="json"),
+                    "user_id": user_id,
+                })
 
         return count
 
@@ -236,20 +193,11 @@ class ItemService:
         count = self.repository.bulk_update_sort_indices(list_id, reorder_entries)
 
         # Broadcast reorder event
-        import asyncio
-        try:
-            asyncio.create_task(
-                manager.broadcast(
-                    list_id,
-                    {
-                        "type": "items_reordered",
-                        "items": reorder_entries,
-                        "user_id": user_id,
-                    },
-                )
-            )
-        except Exception:
-            pass  # WebSocket broadcast is not critical
+        _broadcast(list_id, {
+            "type": "items_reordered",
+            "items": reorder_entries,
+            "user_id": user_id,
+        })
 
         return {"success": True, "count": count}
 

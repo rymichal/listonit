@@ -19,7 +19,7 @@ router = APIRouter(prefix="/lists/{list_id}/items", tags=["items"])
 
 
 @router.post("", response_model=ItemResponse, status_code=status.HTTP_201_CREATED)
-def create_item(
+async def create_item(
     list_id: str,
     item_data: ItemCreate,
     db: Session = Depends(get_db),
@@ -31,7 +31,7 @@ def create_item(
 
 
 @router.post("/batch", response_model=list[ItemResponse], status_code=status.HTTP_201_CREATED)
-def create_items_batch(
+async def create_items_batch(
     list_id: str,
     batch_data: ItemBatchCreate,
     db: Session = Depends(get_db),
@@ -66,7 +66,7 @@ def get_item(
 
 
 @router.patch("/{item_id}", response_model=ItemResponse)
-def update_item(
+async def update_item(
     list_id: str,
     item_id: str,
     update_data: ItemUpdate,
@@ -79,7 +79,7 @@ def update_item(
 
 
 @router.post("/{item_id}/toggle", response_model=ItemResponse)
-def toggle_item(
+async def toggle_item(
     list_id: str,
     item_id: str,
     db: Session = Depends(get_db),
@@ -91,7 +91,7 @@ def toggle_item(
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_item(
+async def delete_item(
     list_id: str,
     item_id: str,
     db: Session = Depends(get_db),
@@ -115,7 +115,7 @@ def clear_checked_items(
 
 
 @router.post("/batch-check", response_model=BatchOperationResponse)
-def batch_check_items(
+async def batch_check_items(
     list_id: str,
     batch_data: ItemBatchCheck,
     db: Session = Depends(get_db),
@@ -143,7 +143,7 @@ def batch_delete_items(
 
 
 @router.post("/reorder", response_model=BatchOperationResponse)
-def reorder_items(
+async def reorder_items(
     list_id: str,
     reorder_data: ItemReorder,
     db: Session = Depends(get_db),

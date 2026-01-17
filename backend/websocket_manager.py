@@ -59,13 +59,17 @@ class ConnectionManager:
         self, list_id: str, message: dict, exclude: Optional[WebSocket] = None
     ):
         """Broadcast a message to all connections for a specific list."""
+        connections = self.active_connections[list_id]
+        print(f"[WS] Broadcasting to list {list_id}: {len(connections)} connections, message type: {message.get('type')}")
         dead_connections = []
 
-        for connection in self.active_connections[list_id]:
+        for connection in connections:
             if connection != exclude:
                 try:
                     await connection.send_json(message)
-                except Exception:
+                    print(f"[WS] Sent to connection successfully")
+                except Exception as e:
+                    print(f"[WS] Failed to send: {e}")
                     # Mark connection as dead to remove later
                     dead_connections.append(connection)
 

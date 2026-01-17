@@ -24,7 +24,18 @@ class ListonitApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: _buildHome(authState),
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeIn,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: child,
+          );
+        },
+        child: _buildHome(authState),
+      ),
     );
   }
 
@@ -32,11 +43,11 @@ class ListonitApp extends ConsumerWidget {
     switch (authState.status) {
       case AuthStatus.initial:
       case AuthStatus.loading:
-        return const SplashScreen();
+        return const SplashScreen(key: ValueKey('splash'));
       case AuthStatus.authenticated:
-        return const ListsScreen();
+        return const ListsScreen(key: ValueKey('lists'));
       case AuthStatus.unauthenticated:
-        return const LoginScreen();
+        return const LoginScreen(key: ValueKey('login'));
     }
   }
 }

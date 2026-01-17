@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_provider.dart';
+import '../../lists/providers/lists_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -15,6 +16,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoggingIn = false;
 
   @override
   void dispose() {
@@ -26,12 +28,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
+    setState(() => _isLoggingIn = true);
+
     final success = await ref.read(authProvider.notifier).login(
           username: _usernameController.text.trim(),
           password: _passwordController.text,
         );
 
-    if (!success && mounted) {
+    if (success && mounted) {
+      // Pre-fetch lists so they're ready when the lists screen appears
+      // Keep loading indicator visible during this
+      await ref.read(listsProvider.notifier).loadLists();
+    } else if (!success && mounted) {
+      setState(() => _isLoggingIn = false);
       final error = ref.read(authProvider).error;
       if (error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -43,13 +52,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       }
     }
+    // Note: We don't reset _isLoggingIn on success because the screen will be replaced
   }
 
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -132,10 +140,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: authState.isLoading ? null : _login,
+                    onPressed: _isLoggingIn ? null : _login,
                     child: Padding(
                       padding: const EdgeInsets.all(12),
-                      child: authState.isLoading
+                      child: _isLoggingIn
                           ? const SizedBox(
                               height: 20,
                               width: 20,

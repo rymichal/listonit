@@ -20,7 +20,11 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(listsProvider.notifier).loadLists();
+      // Only load if lists haven't been pre-fetched (e.g., during login)
+      final state = ref.read(listsProvider);
+      if (state.lists.isEmpty && !state.isLoading) {
+        ref.read(listsProvider.notifier).loadLists();
+      }
     });
   }
 
