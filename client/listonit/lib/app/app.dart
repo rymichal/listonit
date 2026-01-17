@@ -40,6 +40,12 @@ class ListonitApp extends ConsumerWidget {
   }
 
   Widget _buildHome(AuthState authState) {
+    // If user is actively logging in, show lists screen immediately
+    // (even if still loading) to avoid flash to splash screen
+    if (authState.isActiveLogin && authState.status == AuthStatus.loading) {
+      return const ListsScreen(key: ValueKey('lists'));
+    }
+
     switch (authState.status) {
       case AuthStatus.initial:
       case AuthStatus.loading:

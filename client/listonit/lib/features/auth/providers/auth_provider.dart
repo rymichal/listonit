@@ -15,11 +15,13 @@ class AuthState {
   final AuthStatus status;
   final User? user;
   final String? error;
+  final bool isActiveLogin; // Track if user is actively logging in
 
   const AuthState({
     this.status = AuthStatus.initial,
     this.user,
     this.error,
+    this.isActiveLogin = false,
   });
 
   bool get isAuthenticated => status == AuthStatus.authenticated;
@@ -29,11 +31,13 @@ class AuthState {
     AuthStatus? status,
     User? user,
     String? error,
+    bool? isActiveLogin,
   }) {
     return AuthState(
       status: status ?? this.status,
       user: user ?? this.user,
       error: error,
+      isActiveLogin: isActiveLogin ?? this.isActiveLogin,
     );
   }
 }
@@ -62,16 +66,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String username,
     required String password,
   }) async {
-    state = state.copyWith(status: AuthStatus.loading, error: null);
+    state = state.copyWith(
+      status: AuthStatus.loading,
+      error: null,
+      isActiveLogin: true,
+    );
 
     try {
       final user = await _authService.login(username: username, password: password);
-      state = AuthState(status: AuthStatus.authenticated, user: user);
+      state = AuthState(
+        status: AuthStatus.authenticated,
+        user: user,
+        isActiveLogin: false,
+      );
       return true;
     } on AuthException catch (e) {
       state = AuthState(
         status: AuthStatus.unauthenticated,
         error: e.message,
+        isActiveLogin: false,
       );
       return false;
     }

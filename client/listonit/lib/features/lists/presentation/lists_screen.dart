@@ -82,6 +82,15 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
         title: const Text('My Lists'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh lists',
+            onPressed: state.isLoading
+                ? null
+                : () {
+                    ref.read(listsProvider.notifier).loadLists();
+                  },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
             onPressed: () {

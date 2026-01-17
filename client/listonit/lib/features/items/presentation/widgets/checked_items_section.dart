@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/item.dart';
-import '../../providers/items_provider.dart';
 import '../../providers/show_checked_items_provider.dart';
 import 'selectable_item_tile.dart';
 
@@ -96,9 +95,7 @@ class CheckedItemsSection extends ConsumerWidget {
                     ),
               ),
               TextButton(
-                onPressed: () {
-                  _showClearConfirmation(context, ref);
-                },
+                onPressed: null, // Disabled - currently bugged
                 child: const Text('Clear all'),
               ),
             ],
@@ -120,46 +117,6 @@ class CheckedItemsSection extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
       ],
-    );
-  }
-
-  void _showClearConfirmation(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear completed items?'),
-        content: const Text(
-          'This will delete all completed items. This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ref
-                  .read(itemsProvider(listId).notifier)
-                  .clearCheckedItems()
-                  .then((_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Deleted ${checkedItems.length} item${checkedItems.length == 1 ? '' : 's'}'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              });
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Clear'),
-          ),
-        ],
-      ),
     );
   }
 }
