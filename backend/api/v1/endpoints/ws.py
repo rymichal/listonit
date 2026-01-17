@@ -1,9 +1,7 @@
 """WebSocket endpoints for real-time list synchronization."""
 from fastapi import APIRouter, Query, WebSocketDisconnect, WebSocket, status
-from sqlalchemy.orm import Session
 
 from auth.security import decode_token
-from database import get_db
 from websocket_manager import manager
 
 router = APIRouter()
@@ -38,16 +36,19 @@ async def websocket_endpoint(websocket: WebSocket, list_id: str, token: str = Qu
     # In production, check list membership in database
 
     # Get user info from database for broadcasting
-    db = next(get_db())
+    # Use a context manager to ensure the connection is released immediately
     from models.user import User
+    from database import SessionLocal
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
+    with SessionLocal() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        user_name = user.name  # Copy the data we need before closing the session
 
     try:
-        await manager.connect(websocket, list_id, user_id, user.name)
+        await manager.connect(websocket, list_id, user_id, user_name)
 
         while True:
             data = await websocket.receive_json()
@@ -60,7 +61,7 @@ async def websocket_endpoint(websocket: WebSocket, list_id: str, token: str = Qu
                     {
                         "type": "user_typing",
                         "user_id": user_id,
-                        "user_name": user.name,
+                        "user_name": user_name,
                     },
                     exclude=websocket,
                 )
