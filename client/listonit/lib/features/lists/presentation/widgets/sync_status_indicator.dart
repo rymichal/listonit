@@ -1,54 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../providers/sync_provider.dart';
+import '../../providers/presence_provider.dart';
+import '../../../../core/websocket/websocket_connection_provider.dart' as ws;
 
 class SyncStatusIndicator extends ConsumerWidget {
   const SyncStatusIndicator({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final syncState = ref.watch(syncProvider);
+    final connectionState = ref.watch(ws.websocketConnectionProvider);
+    final presenceState = ref.watch(presenceProvider);
 
     return AnimatedOpacity(
-      opacity: syncState.status == SyncStatus.idle ? 0 : 1,
+      opacity: connectionState.status == ws.ConnectionStatus.idle ? 0 : 1,
       duration: const Duration(milliseconds: 300),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildStatusBar(context, syncState),
-            if (syncState.activeUsers.isNotEmpty)
-              _buildActiveUsersBar(context, syncState),
+            _buildStatusBar(context, connectionState),
+            if (presenceState.userCount > 0)
+              _buildActiveUsersBar(context, presenceState),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatusBar(BuildContext context, SyncState syncState) {
+  Widget _buildStatusBar(BuildContext context, ws.ConnectionState connectionState) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: _getStatusColor(syncState.status, colorScheme).withAlpha(25),
+        color: _getStatusColor(connectionState.status, colorScheme).withAlpha(25),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: _getStatusColor(syncState.status, colorScheme).withAlpha(50),
+          color: _getStatusColor(connectionState.status, colorScheme).withAlpha(50),
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildStatusIcon(syncState.status),
+          _buildStatusIcon(connectionState.status),
           const SizedBox(width: 8),
           Text(
-            _getStatusText(syncState.status),
+            _getStatusText(connectionState.status),
             style: theme.textTheme.bodySmall?.copyWith(
-              color: _getStatusColor(syncState.status, colorScheme),
+              color: _getStatusColor(connectionState.status, colorScheme),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -57,7 +59,7 @@ class SyncStatusIndicator extends ConsumerWidget {
     );
   }
 
-  Widget _buildActiveUsersBar(BuildContext context, SyncState syncState) {
+  Widget _buildActiveUsersBar(BuildContext context, PresenceState presenceState) {
     final theme = Theme.of(context);
 
     return Padding(
@@ -78,15 +80,15 @@ class SyncStatusIndicator extends ConsumerWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              '${syncState.activeUsers.length} online',
+              '${presenceState.userCount} online',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.primary,
               ),
             ),
-            if (syncState.activeUsers.length <= 3) ...[
+            if (presenceState.userCount <= 3) ...[
               const SizedBox(width: 6),
               Text(
-                syncState.activeUsers.join(', '),
+                presenceState.userNames.join(', '),
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.primary,
                   fontSize: 11,
@@ -101,11 +103,12 @@ class SyncStatusIndicator extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatusIcon(SyncStatus status) {
+  Widget _buildStatusIcon(ws.ConnectionStatus status) {
     switch (status) {
-      case SyncStatus.idle:
+      case ws.ConnectionStatus.idle:
         return const SizedBox.shrink();
-      case SyncStatus.connecting:
+      case ws.ConnectionStatus.connecting:
+      case ws.ConnectionStatus.reconnecting:
         return SizedBox(
           width: 14,
           height: 14,
@@ -114,19 +117,19 @@ class SyncStatusIndicator extends ConsumerWidget {
             valueColor: AlwaysStoppedAnimation<Color>(Colors.orange.shade600),
           ),
         );
-      case SyncStatus.connected:
+      case ws.ConnectionStatus.connected:
         return Icon(
           Icons.cloud_done,
           size: 14,
           color: Colors.green.shade600,
         );
-      case SyncStatus.disconnected:
+      case ws.ConnectionStatus.disconnected:
         return Icon(
           Icons.cloud_off,
           size: 14,
           color: Colors.grey.shade600,
         );
-      case SyncStatus.error:
+      case ws.ConnectionStatus.error:
         return Icon(
           Icons.cloud_off,
           size: 14,
@@ -135,32 +138,35 @@ class SyncStatusIndicator extends ConsumerWidget {
     }
   }
 
-  String _getStatusText(SyncStatus status) {
+  String _getStatusText(ws.ConnectionStatus status) {
     switch (status) {
-      case SyncStatus.idle:
+      case ws.ConnectionStatus.idle:
         return '';
-      case SyncStatus.connecting:
+      case ws.ConnectionStatus.connecting:
         return 'Syncing...';
-      case SyncStatus.connected:
+      case ws.ConnectionStatus.reconnecting:
+        return 'Reconnecting...';
+      case ws.ConnectionStatus.connected:
         return 'Synced';
-      case SyncStatus.disconnected:
+      case ws.ConnectionStatus.disconnected:
         return 'Offline';
-      case SyncStatus.error:
+      case ws.ConnectionStatus.error:
         return 'Sync error';
     }
   }
 
-  Color _getStatusColor(SyncStatus status, ColorScheme colorScheme) {
+  Color _getStatusColor(ws.ConnectionStatus status, ColorScheme colorScheme) {
     switch (status) {
-      case SyncStatus.idle:
+      case ws.ConnectionStatus.idle:
         return Colors.transparent;
-      case SyncStatus.connecting:
+      case ws.ConnectionStatus.connecting:
+      case ws.ConnectionStatus.reconnecting:
         return Colors.orange;
-      case SyncStatus.connected:
+      case ws.ConnectionStatus.connected:
         return Colors.green;
-      case SyncStatus.disconnected:
+      case ws.ConnectionStatus.disconnected:
         return Colors.grey;
-      case SyncStatus.error:
+      case ws.ConnectionStatus.error:
         return colorScheme.error;
     }
   }

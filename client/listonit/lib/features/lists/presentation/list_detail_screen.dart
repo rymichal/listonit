@@ -13,8 +13,7 @@ import '../../items/providers/items_provider.dart';
 import '../../items/providers/sort_preferences.dart';
 import '../domain/shopping_list.dart';
 import '../providers/lists_provider.dart';
-import '../providers/sync_provider.dart';
-import '../services/list_websocket_service.dart';
+import '../../../core/websocket/websocket_connection_provider.dart';
 import 'widgets/edit_list_modal.dart';
 import 'widgets/share_link_modal.dart';
 import 'widgets/members_modal.dart';
@@ -69,40 +68,17 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   Future<void> _connectSync() async {
     final authState = ref.read(authProvider);
     if (authState.isAuthenticated) {
-      // Get token from secure storage
       try {
         final tokenStorage = ref.read(tokenStorageProvider);
         final token = await tokenStorage.getAccessToken();
         if (token != null && mounted) {
-          await ref.read(syncProvider.notifier).connectToList(
+          await ref.read(websocketConnectionProvider.notifier).connect(
                 widget.list.id,
                 token,
               );
-          // Setup listener for reorder events
-          _setupSyncListeners();
         }
       } catch (e) {
-        debugPrint('Failed to get token for sync: $e');
-      }
-    }
-  }
-
-  void _setupSyncListeners() {
-    listWebSocketService.addListener(_handleSyncMessage);
-  }
-
-  void _handleSyncMessage(SyncMessage message) {
-    if (message.type == 'items_reordered') {
-      final itemsNotifier = ref.read(itemsProvider(widget.list.id).notifier);
-      final items = message.data['items'] as List?;
-      if (items != null) {
-        final reorderedData = items
-            .map((item) => {
-              'id': item['id'] as String,
-              'sort_index': item['sort_index'] as int,
-            })
-            .toList();
-        itemsNotifier.applyReorderFromServer(reorderedData);
+        debugPrint('Failed to connect WebSocket: $e');
       }
     }
   }
@@ -111,8 +87,7 @@ class _ListDetailScreenState extends ConsumerState<ListDetailScreen> {
   void dispose() {
     try {
       if (mounted) {
-        ref.read(syncProvider.notifier).disconnect();
-        listWebSocketService.removeListener(_handleSyncMessage);
+        ref.read(websocketConnectionProvider.notifier).disconnect();
       }
     } catch (_) {
       // Safely ignore errors during dispose

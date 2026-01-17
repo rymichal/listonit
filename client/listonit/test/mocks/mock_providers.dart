@@ -9,8 +9,8 @@ import 'package:listonit/features/auth/data/token_storage.dart';
 import 'package:listonit/features/lists/data/list_repository.dart';
 import 'package:listonit/features/lists/domain/shopping_list.dart';
 import 'package:listonit/features/lists/providers/lists_provider.dart';
-import 'package:listonit/features/lists/providers/sync_provider.dart';
-import 'package:listonit/features/lists/services/list_websocket_service.dart';
+import 'package:listonit/features/lists/providers/presence_provider.dart';
+import 'package:listonit/core/websocket/websocket_connection_provider.dart' as ws;
 import 'package:listonit/features/items/providers/items_provider.dart';
 import 'package:listonit/features/items/providers/item_selection_provider.dart';
 import 'package:listonit/features/items/data/item_repository.dart';
@@ -179,27 +179,33 @@ class MockItemRepository extends Mock implements ItemRepository {
   }
 }
 
-class MockListWebSocketService extends Mock implements ListWebSocketService {
-  @override
-  void addListener(Function callback) {}
+// Mock WebSocket Connection
+class MockWebSocketConnection extends ws.WebSocketConnection {
+  MockWebSocketConnection() : super(baseUrl: 'ws://test');
 
   @override
-  void removeListener(Function callback) {}
+  Future<void> connect(String listId, String token) async {
+    state = state.copyWith(
+      status: ws.ConnectionStatus.connected,
+      currentListId: listId,
+    );
+  }
 
   @override
-  Future<void> connect(String listId, String token) async {}
+  void disconnect() {
+    state = state.copyWith(status: ws.ConnectionStatus.disconnected);
+  }
 
   @override
-  void disconnect() {}
+  void send(Map<String, dynamic> message) {}
 
   @override
-  void sendTyping(String userName) {}
+  Stream<Map<String, dynamic>> get messages => const Stream.empty();
+}
 
-  @override
-  void sendSyncAck(String messageId) {}
-
-  @override
-  bool get isConnected => false;
+// Mock Presence Notifier
+class MockPresenceNotifier extends PresenceNotifier {
+  // Can use default implementation or override as needed
 }
 
 // Test data
@@ -277,9 +283,13 @@ List<Override> createTestOverrides({
     itemSelectionProvider.overrideWith((ref) {
       return ItemSelectionNotifier();
     }),
-    // Mock sync provider - use a mock WebSocket service
-    syncProvider.overrideWith((ref) {
-      return SyncNotifier(MockListWebSocketService());
+    // Mock WebSocket connection provider
+    ws.websocketConnectionProvider.overrideWith((ref) {
+      return MockWebSocketConnection();
+    }),
+    // Mock presence provider
+    presenceProvider.overrideWith((ref) {
+      return MockPresenceNotifier();
     }),
     // Mock offline sync notifier - for offline support testing
     offline_sync.syncNotifierProvider.overrideWith((ref) {

@@ -55,7 +55,26 @@ class ItemService:
             )
 
         items = self.repository.create_batch(list_id, valid_names, user_id)
-        return [ItemResponse.model_validate(item) for item in items]
+        responses = [ItemResponse.model_validate(item) for item in items]
+
+        # Broadcast each item creation
+        import asyncio
+        try:
+            for response in responses:
+                asyncio.create_task(
+                    manager.broadcast(
+                        list_id,
+                        {
+                            "type": "item_added",
+                            "item": response.model_dump(),
+                            "user_id": user_id,
+                        },
+                    )
+                )
+        except Exception:
+            pass  # WebSocket broadcast is not critical
+
+        return responses
 
     def get_items(self, list_id: str, user_id: str) -> list[ItemResponse]:
         # Verify list exists and user has access
@@ -79,7 +98,25 @@ class ItemService:
 
         item = self._get_item_or_404(item_id, list_id)
         updated = self.repository.update(item, update_data)
-        return ItemResponse.model_validate(updated)
+        response = ItemResponse.model_validate(updated)
+
+        # Broadcast to WebSocket clients
+        import asyncio
+        try:
+            asyncio.create_task(
+                manager.broadcast(
+                    list_id,
+                    {
+                        "type": "item_updated",
+                        "item": response.model_dump(),
+                        "user_id": user_id,
+                    },
+                )
+            )
+        except Exception:
+            pass  # WebSocket broadcast is not critical
+
+        return response
 
     def toggle_item(
         self, list_id: str, item_id: str, user_id: str
@@ -116,6 +153,22 @@ class ItemService:
         item = self._get_item_or_404(item_id, list_id)
         self.repository.delete(item)
 
+        # Broadcast to WebSocket clients
+        import asyncio
+        try:
+            asyncio.create_task(
+                manager.broadcast(
+                    list_id,
+                    {
+                        "type": "item_deleted",
+                        "item_id": item_id,
+                        "user_id": user_id,
+                    },
+                )
+            )
+        except Exception:
+            pass  # WebSocket broadcast is not critical
+
     def clear_checked(self, list_id: str, user_id: str) -> int:
         # Verify list exists and user has access
         self._verify_list_access(list_id, user_id)
@@ -128,7 +181,28 @@ class ItemService:
         # Verify list exists and user has access
         self._verify_list_access(list_id, user_id)
 
-        return self.repository.batch_check(list_id, item_ids, checked, user_id)
+        count = self.repository.batch_check(list_id, item_ids, checked, user_id)
+
+        # Broadcast update for each item
+        import asyncio
+        try:
+            for item_id in item_ids:
+                item = self.repository.get_by_id(item_id)
+                if item:
+                    asyncio.create_task(
+                        manager.broadcast(
+                            list_id,
+                            {
+                                "type": "item_updated",
+                                "item": ItemResponse.model_validate(item).model_dump(),
+                                "user_id": user_id,
+                            },
+                        )
+                    )
+        except Exception:
+            pass  # WebSocket broadcast is not critical
+
+        return count
 
     def batch_delete(self, list_id: str, item_ids: list[str], user_id: str) -> int:
         # Verify list exists and user has access
@@ -160,6 +234,22 @@ class ItemService:
         ]
 
         count = self.repository.bulk_update_sort_indices(list_id, reorder_entries)
+
+        # Broadcast reorder event
+        import asyncio
+        try:
+            asyncio.create_task(
+                manager.broadcast(
+                    list_id,
+                    {
+                        "type": "items_reordered",
+                        "items": reorder_entries,
+                        "user_id": user_id,
+                    },
+                )
+            )
+        except Exception:
+            pass  # WebSocket broadcast is not critical
 
         return {"success": True, "count": count}
 

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -570,6 +571,65 @@ class ItemsNotifier extends StateNotifier<ItemsState> {
   void initializeSortMode(String sortModeString, bool ascending) {
     final sortMode = SortMode.fromString(sortModeString);
     state = state.copyWith(sortMode: sortMode, sortAscending: ascending);
+  }
+
+  // ===== WebSocket Server Sync Methods =====
+
+  /// Called by WebSocket router when item is created on another device
+  void addItemFromServer(Map<String, dynamic> itemData) {
+    try {
+      final item = Item.fromJson(itemData);
+
+      // Prevent duplicates
+      if (state.items.any((i) => i.id == item.id)) {
+        debugPrint('Item ${item.id} already exists, skipping add from server');
+        return;
+      }
+
+      state = state.copyWith(
+        items: [...state.items, item],
+      );
+
+      debugPrint('Added item from server: ${item.name}');
+    } catch (e) {
+      debugPrint('Failed to add item from server: $e');
+    }
+  }
+
+  /// Called by WebSocket router when item is updated on another device
+  void updateItemFromServer(Map<String, dynamic> itemData) {
+    try {
+      final updatedItem = Item.fromJson(itemData);
+
+      final itemIndex = state.items.indexWhere((i) => i.id == updatedItem.id);
+      if (itemIndex == -1) {
+        debugPrint('Item ${updatedItem.id} not found for update, ignoring');
+        return;
+      }
+
+      state = state.copyWith(
+        items: state.items.map((i) => i.id == updatedItem.id ? updatedItem : i).toList(),
+      );
+
+      debugPrint('Updated item from server: ${updatedItem.name}');
+    } catch (e) {
+      debugPrint('Failed to update item from server: $e');
+    }
+  }
+
+  /// Called by WebSocket router when item is deleted on another device
+  void deleteItemFromServer(String itemId) {
+    final itemExists = state.items.any((i) => i.id == itemId);
+    if (!itemExists) {
+      debugPrint('Item $itemId not found for deletion, ignoring');
+      return;
+    }
+
+    state = state.copyWith(
+      items: state.items.where((i) => i.id != itemId).toList(),
+    );
+
+    debugPrint('Deleted item from server: $itemId');
   }
 }
 
