@@ -13,6 +13,12 @@ API_BASE_URL=https://api.manyhappyapples.com
 
 ## Android
 
+**Install directly to connected device:**
+```bash
+flutter run --release
+```
+This builds the release APK and installs it directly on your USB-connected Android device. The app remains on your device permanently and is production-ready (not debug mode).
+
 **Build APK:**
 ```bash
 flutter build apk --release
